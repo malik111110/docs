@@ -1,0 +1,114 @@
+---
+title: "POST /api/verifications/check-quality — Image Check"
+sidebarTitle: "Check Quality"
+description: "POST /api/verifications/check-quality — scan a base64 document image for blur, shadows, and screen-recapture before submitting to full verification."
+---
+
+Before committing a document to the full verification pipeline, you can run a fast, synchronous quality pre-check. This endpoint inspects the submitted image for blur, shadow coverage, and screen-recapture artifacts — the three most common causes of failed or degraded OCR extraction. The Quick KYC onboarding wizard calls this endpoint after every capture attempt and blocks progression if the image does not meet the minimum quality threshold, preventing wasted processing cycles and improving first-pass verification accuracy.
+
+## Endpoint
+
+```
+POST /api/verifications/check-quality
+```
+
+## Request Body
+
+<ParamField body="image" type="string" required>
+  Base64-encoded JPEG of the document image you want to pre-screen. Use the same encoding format you would send to `POST /api/verifications` — raw JPEG bytes in standard Base64, without a `data:image/jpeg;base64,` prefix.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash curl
+curl -X POST http://your-server:8080/api/verifications/check-quality \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image": "/9j/4AAQSkZJRgABAQAAAQABAAD..."
+  }'
+```
+
+```json Body
+{
+  "image": "/9j/4AAQSkZJRgABAQAAAQABAAD..."
+}
+```
+</CodeGroup>
+
+## Response — 200 OK
+
+<ResponseField name="overallScore" type="float">
+  Composite quality score from `0` to `100`. A higher score indicates a cleaner, more submission-ready image. Scores below `70` typically indicate one or more quality problems are present.
+</ResponseField>
+
+<ResponseField name="sharpnessScore" type="float">
+  Image sharpness measurement normalised to a `0`–`100` scale. Values below `80` are considered blurry.
+</ResponseField>
+
+<ResponseField name="isBlurred" type="boolean">
+  `true` if the sharpness score falls below `80`. When `true`, the operator should re-capture the document.
+</ResponseField>
+
+<ResponseField name="hasShadows" type="boolean">
+  `true` if shadow overlay regions were detected across the document surface. Shadows can obscure holograms, micro-print, and watermarks, reducing OCR confidence.
+</ResponseField>
+
+<ResponseField name="isScreenRecaptureLikely" type="boolean">
+  `true` if the image analysis determines the document was photographed from a screen rather than a physical document. This is a strong fraud indicator and should block submission.
+</ResponseField>
+
+<ResponseField name="screenRecaptureScore" type="float">
+  Composite score from the screen-recapture detection analysis. Values closer to `1.0` represent a higher likelihood that the image was photographed from a screen.
+</ResponseField>
+
+<ResponseField name="signals" type="object">
+  Granular sub-scores from each detection module. Use these to understand which specific artifact triggered a quality flag.
+
+  <Expandable title="signals fields">
+    <ResponseField name="fftPeriodicPattern" type="float">
+      Score measuring periodic frequency patterns in the image that are characteristic of digital display screens. Higher values indicate a stronger match.
+    </ResponseField>
+    <ResponseField name="moireScore" type="float">
+      Score for interference patterns that appear when a camera photographs a screen. Higher values indicate a greater likelihood of screen recapture.
+    </ResponseField>
+    <ResponseField name="pixelGridScore" type="float">
+      Score for the regular grid-like structure produced by digital display panels. Higher values suggest the image was captured from a screen.
+    </ResponseField>
+    <ResponseField name="contextualScreenFrame" type="float">
+      Score for the presence of screen-frame context clues (bezel, reflections, screen glare) detected around the document edges.
+    </ResponseField>
+    <ResponseField name="aspectRatioAnomaly" type="float">
+      Deviation score for document aspect ratios that do not match known physical document standards, which can indicate a cropped screenshot.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="guidance" type="array">
+  An array of human-readable strings with re-capture instructions tailored to the detected problems. If the image passes all quality checks, this array is empty.
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "overallScore": 85.0,
+  "sharpnessScore": 90.0,
+  "isBlurred": false,
+  "hasShadows": false,
+  "isScreenRecaptureLikely": false,
+  "screenRecaptureScore": 0.12,
+  "signals": {
+    "fftPeriodicPattern": 0.05,
+    "moireScore": 0.08,
+    "pixelGridScore": 0.10,
+    "contextualScreenFrame": 0.00,
+    "aspectRatioAnomaly": 0.00
+  },
+  "guidance": []
+}
+```
+
+<Warning>
+  If `isBlurred` or `isScreenRecaptureLikely` is `true`, **do not proceed with submission**. Display the `guidance` array to the operator and require them to re-capture the document under better conditions. Submitting a blurry or screen-recaptured image will result in degraded OCR accuracy and is likely to generate a high-risk score or incomplete extraction.
+</Warning>

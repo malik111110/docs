@@ -1,0 +1,98 @@
+---
+title: "POST /api/verifications — Submit a New Verification"
+sidebarTitle: "Submit Verification"
+description: "POST /api/verifications — submit a document for KYC verification. Accepts base64 JPEG images and an optional webhook URL for async result delivery."
+---
+
+Submitting a verification is the entry point for the entire Quick KYC pipeline. You send one or more base64-encoded JPEG images — at minimum the document front — and the platform immediately stores the record as `PENDING`, enqueues it for background processing, and returns the new record ID. OCR extraction, fraud scoring, and trust index calculation all happen asynchronously after the response is delivered.
+
+## Endpoint
+
+```
+POST /api/verifications
+```
+
+## Request Body
+
+<ParamField body="documentFront" type="string" required>
+  Base64-encoded JPEG of the front face of the identity document. This is the only required image field. Encode the raw binary JPEG bytes in standard Base64 — do not include a `data:image/jpeg;base64,` prefix.
+</ParamField>
+
+<ParamField body="documentBack" type="string">
+  Base64-encoded JPEG of the document reverse side. Required for national identity cards and driver's licenses that carry machine-readable data on the back. Not required for passports.
+</ParamField>
+
+<ParamField body="selfie" type="string">
+  Base64-encoded JPEG of the subject's live selfie. When provided, the engine performs a biometric liveness and face-match check against the document portrait.
+</ParamField>
+
+<ParamField body="webhookUrl" type="string">
+  A publicly reachable URL that Quick KYC will `POST` the completed verification result to once processing finishes. If omitted, you must poll `GET /api/verifications/:id` to retrieve the final result.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash curl
+curl -X POST http://your-server:8080/api/verifications \
+  -H "Content-Type: application/json" \
+  -d '{
+    "documentFront": "/9j/4AAQSkZJRgABAQAAAQABAAD...",
+    "documentBack":  "/9j/4AAQSkZJRgABAQAAAQABAAD...",
+    "selfie":        "/9j/4AAQSkZJRgABAQAAAQABAAD...",
+    "webhookUrl":    "https://your-app.internal/webhooks/kyc"
+  }'
+```
+
+```json Body
+{
+  "documentFront": "/9j/4AAQSkZJRgABAQAAAQABAAD...",
+  "documentBack":  "/9j/4AAQSkZJRgABAQAAAQABAAD...",
+  "selfie":        "/9j/4AAQSkZJRgABAQAAAQABAAD...",
+  "webhookUrl":    "https://your-app.internal/webhooks/kyc"
+}
+```
+</CodeGroup>
+
+## Response — 201 Created
+
+<ResponseField name="id" type="string">
+  Unique record identifier in `KYC-xxxxxxxx` format. Use this value in all subsequent requests for this verification.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Always `"PENDING"` immediately after creation. The status transitions to `UNDER_REVIEW`, `APPROVED`, or `REJECTED` once background processing completes.
+</ResponseField>
+
+<ResponseField name="documentFront" type="string">
+  Echo of the base64-encoded document front image you submitted, confirming receipt.
+</ResponseField>
+
+<ResponseField name="submittedAt" type="string">
+  ISO 8601 timestamp recording when the verification was submitted by the operator.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 timestamp recording when the database record was created.
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string">
+  ISO 8601 timestamp of the most recent update to this record. On creation, `createdAt` and `updatedAt` are equal.
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "id": "KYC-a9fd8241",
+  "status": "PENDING",
+  "documentFront": "/9j/4AAQSkZJRgABAQAAAQABAAD...",
+  "submittedAt": "2026-05-31T16:50:00Z",
+  "createdAt": "2026-05-31T16:50:00Z",
+  "updatedAt": "2026-05-31T16:50:00Z"
+}
+```
+
+<Note>
+  Processing is asynchronous. The `201` response confirms the record was accepted — it does **not** mean analysis is complete. Poll `GET /api/verifications/:id` every few seconds until `status` changes from `PENDING`, or supply a `webhookUrl` to receive a push notification when the result is ready.
+</Note>

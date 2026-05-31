@@ -1,0 +1,80 @@
+---
+title: "Connecting Your Application to the Quick KYC Server"
+sidebarTitle: "Setup"
+description: "Configure your Quick KYC client to connect to the local server, set the base URL, and verify the connection is ready for document submissions."
+---
+
+Quick KYC runs entirely on your own infrastructure — there are no external cloud services or third-party dependencies. To start submitting documents for verification, you only need one piece of information: the base URL of the server your administrator provisioned. Once you have that, you can hit the REST API directly or initialize the Python SDK, and your client is ready to go.
+
+## Finding Your Server URL
+
+The Quick KYC server exposes all endpoints under a single base URL. Unless your administrator configured a custom port, the default address follows this format:
+
+```
+http://your-server:8080
+```
+
+Replace `your-server` with the hostname or IP address of the machine running Quick KYC.
+
+<Note>
+  The default port is **8080**. Your administrator may have changed this during server setup. Check with your ops team if the default port does not respond.
+</Note>
+
+## Verifying the Server Is Running
+
+Before sending document submissions, confirm the OCR node is healthy by calling the stats endpoint. This returns real-time uptime, throughput, and queue information.
+
+```bash
+curl http://your-server:8080/api/stats/ocr-node
+```
+
+A healthy server responds with HTTP 200 and a payload similar to this:
+
+```json
+{
+  "uptime": "23d 4h 12m",
+  "successRate": 99.8,
+  "avgLatency": "820ms",
+  "queueDepth": 0,
+  "cpuUsage": 12.5,
+  "gpuUsage": 45.2,
+  "memoryUsage": 32.8
+}
+```
+
+If the request times out or returns a connection error, the server is not yet reachable. Verify the hostname, port, and that any firewall rules allow traffic from your client machine.
+
+<Tip>
+  Poll `GET /api/stats/ocr-node` before starting a batch submission run. A non-zero `queueDepth` means the OCR node is already processing work — consider spacing out your requests to avoid piling onto the queue.
+</Tip>
+
+## Connecting via the REST API
+
+All Quick KYC endpoints are prefixed with `/api`. Set the base URL in your HTTP client of choice and append the path for each request. Here is a curl example that confirms connectivity using the stats endpoint:
+
+```bash
+curl --max-time 30 \
+  -H "Content-Type: application/json" \
+  http://your-server:8080/api/stats/ocr-node
+```
+
+For document submission endpoints, use at least a **12–30 second timeout**. OCR extraction runs locally on GPU-backed nodes and can take several seconds per document, particularly under load.
+
+## Connecting via the Python SDK
+
+If you are integrating Quick KYC into a Python application, initialize the client with your server's base URL and a generous timeout:
+
+```python
+from quick_kyc import QuickKYCClient
+
+client = QuickKYCClient(
+    base_url="http://your-server:8080",
+    timeout=12.0  # seconds; increase to 30 for large batch workloads
+)
+```
+
+Pass the `client` instance to the rest of your integration. All SDK methods route through the base URL you configured here, so you only need to set it once.
+
+## Authentication
+
+Quick KYC does not require API keys or authentication tokens on local installations. Access control is handled at the network level — restrict which machines can reach port 8080 using your firewall, VPN, or network segmentation policy. Ensure that only trusted hosts and applications have connectivity to the Quick KYC server.

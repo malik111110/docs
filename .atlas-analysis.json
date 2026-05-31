@@ -1,0 +1,119 @@
+{
+  "projectType": "saas",
+  "projectName": "Quick KYC",
+  "projectDescription": "An on-premises identity verification platform that automates document OCR, fraud detection, and compliance workflows for compliance officers and developer integrators.",
+  "theme": "luma",
+  "primaryColor": "#848c8e",
+  "lightColor": "#11161e",
+  "darkColor": "#cfd0d2",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/how-it-works",
+              "concepts/verification-lifecycle",
+              "concepts/risk-scoring"
+            ]
+          },
+          {
+            "group": "User Guide",
+            "pages": [
+              "guides/onboarding",
+              "guides/dashboard",
+              "guides/manual-audit"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/setup",
+              "configuration/webhooks"
+            ]
+          },
+          {
+            "group": "Troubleshooting",
+            "pages": [
+              "troubleshooting/common-issues",
+              "troubleshooting/faq"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication"
+            ]
+          },
+          {
+            "group": "Verifications",
+            "pages": [
+              "api/verifications/submit",
+              "api/verifications/list",
+              "api/verifications/get",
+              "api/verifications/update-status",
+              "api/verifications/explain",
+              "api/verifications/check-quality"
+            ]
+          },
+          {
+            "group": "Audit & Monitoring",
+            "pages": [
+              "api/audit-logs",
+              "api/ocr-node-stats"
+            ]
+          },
+          {
+            "group": "Python SDK",
+            "pages": [
+              "sdk/python/overview",
+              "sdk/python/usage",
+              "sdk/python/error-handling"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "On-premises document verification with full data sovereignty",
+    "Multi-pass OCR extraction with confidence scoring per field",
+    "Automated fraud detection (ELA, geometry checks, recapture spoofing)",
+    "Real-time capture quality analysis before submission",
+    "Compliance officer dashboard with risk scoring and status workflows",
+    "Manual audit portal with side-by-side document and OCR comparison",
+    "Webhook callbacks for async verification completion",
+    "Python SDK for programmatic integration",
+    "AI-generated natural language explanation of flagged documents",
+    "Biometric selfie audit with facial similarity scoring"
+  ],
+  "publicApiSurface": [
+    "POST /api/verifications",
+    "GET /api/verifications",
+    "GET /api/verifications/:id",
+    "PATCH /api/verifications/:id/status",
+    "GET /api/verifications/:id/explain",
+    "POST /api/verifications/check-quality",
+    "GET /api/audit-logs",
+    "GET /api/stats/ocr-node",
+    "QuickKYCClient.check_quality(image)",
+    "QuickKYCClient.create_verification(document_front, webhook_url)",
+    "QuickKYCClient.update_verification_status(verification_id, status, notes)",
+    "QuickKYCError / ValidationError / NotFoundError / ServerError"
+  ]
+}

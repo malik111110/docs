@@ -1,0 +1,144 @@
+---
+title: "Performing a Manual Compliance Audit of a KYC Record"
+sidebarTitle: "Manual Audit"
+description: "Use the Quick KYC audit portal to inspect extracted fields, review forensic risk signals, and approve or reject a verification with full audit trail."
+---
+
+Manual audit is the mechanism through which your compliance team applies human judgement to identity verifications that the automated pipeline cannot conclusively resolve. Any record carrying an `UNDER_REVIEW` status requires a compliance officer to make a binding decision before the client can be onboarded. You may also open the audit portal on any `APPROVED` record if you want to independently validate the engine's decision — for example, during a spot-check cycle or a regulatory sampling exercise. Every action you take in the audit portal is permanently logged and cannot be edited after the fact.
+
+## When to Perform a Manual Audit
+
+A manual audit is required or appropriate in the following situations:
+
+- The record status is **`UNDER_REVIEW`** — the automated engine escalated it due to elevated risk signals or a quality-threshold breach
+- You wish to double-check an **`APPROVED`** record as part of a routine compliance spot-check
+- A business stakeholder or regulator has requested documented evidence of human review for a specific client
+- You are investigating a pattern of submissions from a particular source and need to inspect individual records in detail
+
+## Opening the Audit Portal
+
+From the **Ingestion Queue** on the compliance dashboard, locate the record you want to inspect. Click the **Audit** button in that row's action column. The audit portal opens in a full-screen overlay, loading all data for that record from your local nodes. No additional login is required — your existing session credentials are used to attribute all actions.
+
+## Audit Portal Sections
+
+The portal is divided into four panels. Work through them from top to bottom to build a complete picture before making your decision.
+
+### 1. Side-by-Side Comparison
+
+The left panel displays the original document scan exactly as it was uploaded — no processing or enhancement applied. The right panel displays every PII field the OCR engine extracted, laid out in the same visual structure as the document. Use this view to catch extraction errors that confidence scores alone might not surface, such as a transposed digit in a document number or a misread date separator.
+
+### 2. PII Matching Check
+
+This panel shows a per-field breakdown of OCR confidence and cross-reference results:
+
+| Column | Description |
+|---|---|
+| **Field** | The document field (e.g., Full Name, Date of Birth, Document Number) |
+| **Extracted Value** | What the OCR engine read from the scan |
+| **Submitted Value** | What the operator entered during client onboarding |
+| **Confidence** | The engine's confidence score for the extraction (0 – 100 %) |
+| **Match Status** | ✅ Match, ⚠️ Partial Match, or ❌ Mismatch |
+
+Any field where the extracted value differs from the submitted value is highlighted in amber. A mismatch does not automatically indicate fraud — OCR can misread stylised fonts or low-contrast print — but each flagged field should be reviewed against the original scan in the side-by-side view before you make a decision.
+
+### 3. Risk Signals Review
+
+The forensic engine evaluates every document against a battery of tamper-detection and validity checks. This panel lists each signal that was triggered, along with its severity:
+
+<CardGroup cols={2}>
+  <Card title="Expiration Check" icon="calendar-xmark">
+    Flags documents where the expiry date is in the past. An expired document must be rejected regardless of other signal outcomes.
+  </Card>
+  <Card title="ELA Anomalies" icon="wand-magic-sparkles">
+    Error Level Analysis detects digital manipulation by identifying regions of the image that were saved at a different compression level — a hallmark of patch-based photo editing.
+  </Card>
+  <Card title="Geometry Deviations" icon="ruler-combined">
+    Character alignment and layout analysis flags documents where text blocks, portrait zones, or security features are shifted outside expected tolerances — common in printed replicas.
+  </Card>
+  <Card title="Shadow Interference" icon="sun">
+    Uneven lighting can obscure MRZ lines, holograms, or security watermarks. This signal is rated by severity; moderate shadows may still allow a confident extraction.
+  </Card>
+  <Card title="Screen Recapture Indicators" icon="display">
+    Detects visual patterns consistent with photographing a digital display rather than scanning a physical document — a common technique used to submit fraudulent copies.
+  </Card>
+  <Card title="Specular Glare" icon="sparkles">
+    Reflective glare over the portrait or data zone that reduces OCR confidence or obscures security features.
+  </Card>
+</CardGroup>
+
+### 4. Biometric Audit
+
+This panel is visible only when a selfie was uploaded during onboarding. It presents two outputs from the biometric subsystem:
+
+- **Facial Similarity Score** — a feature-matching score (0 – 100 %) comparing the selfie to the portrait on the document. Scores below your configured threshold are flagged.
+- **Liveness Check Result** — a passive liveness assessment indicating whether the selfie exhibits characteristics of a live capture or a photograph of a photograph (a "presentation attack").
+
+If the liveness check fails, treat the submission as a potential recapture spoof and review the risk signals panel for corroborating evidence before deciding.
+
+## Making a Decision
+
+Once you have reviewed all four panels, record your decision using the action controls at the bottom of the audit portal.
+
+<Steps>
+
+  <Step title="Review the Full Record">
+    Confirm you have examined the side-by-side comparison, all PII matching flags, every triggered risk signal, and (if present) the biometric audit results. Do not proceed to a decision until you have a complete picture.
+  </Step>
+
+  <Step title="Add Compliance Notes">
+    In the **Notes** field, document your reasoning in plain language. Notes are mandatory for both approvals and rejections. Be specific — reference the field names, signal names, or visual observations that informed your decision. These notes become part of the permanent audit record and may be reviewed by regulators.
+  </Step>
+
+  <Step title="Choose Approve or Reject">
+
+    <Tabs>
+      <Tab title="Approve">
+        Click **Approve** if you are satisfied that:
+
+        - The document is genuine and unaltered
+        - The extracted PII matches the submitted client details within acceptable tolerance
+        - No unresolved risk signals indicate fraud or expiry
+        - Biometric checks (if run) confirm identity
+
+        The record status changes to **`APPROVED`** and the action is logged with your user account, a timestamp, and your compliance notes.
+      </Tab>
+
+      <Tab title="Reject">
+        Click **Reject** if any of the following apply:
+
+        - The document is expired
+        - ELA, geometry, or recapture signals confirm tampering
+        - PII extracted by OCR does not match the submitted details and no innocent explanation exists
+        - Biometric similarity or liveness check fails and corroborating signals support fraud
+
+        You will be prompted to complete two additional fields before the rejection is finalised:
+
+        **Fraud Type** — select the primary classification:
+        - Photo Tampering
+        - Expired Document
+        - Recapture Spoof
+        - Identity Mismatch
+        - Forged Document
+        - Other (specify in notes)
+
+        **Missed Signals** *(optional)* — select any forensic indicators that you identified visually but that the engine did not automatically flag. Recording these helps improve the accuracy of future automated reviews.
+
+        The record status changes to **`REJECTED`** and the full decision — including fraud type and missed signals — is appended to the audit history.
+      </Tab>
+    </Tabs>
+
+  </Step>
+
+  <Step title="Confirm and Submit">
+    Click **Confirm Decision** in the dialogue box that appears. The portal will close and return you to the Ingestion Queue, where the record's status badge and risk bar will reflect the outcome you selected.
+  </Step>
+
+</Steps>
+
+<Note>
+  Every status change in Quick KYC is permanently recorded in the audit history and **cannot be modified or deleted after confirmation**. Each entry captures the actor's username, a UTC timestamp, the action taken (Approve / Reject), the fraud type (if applicable), missed signals (if selected), and the full compliance notes. This immutable trail is available for export and is designed to satisfy common regulatory audit requirements. You can view the complete history for any record by clicking **Audit History** in the portal's top-right corner.
+</Note>
+
+## AI Explanation Summary
+
+If you want a plain-language summary of why the automated engine flagged a particular document, click the **Explain Decision** button in the top-right corner of the audit portal. Quick KYC will generate a structured explanation — written in non-technical language — describing the specific risk signals, their severities, and the reasoning behind the engine's initial status assignment. This is especially useful when preparing documentation for a client dispute or a regulatory enquiry where technical signal names alone may be insufficient context.

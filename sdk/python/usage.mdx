@@ -1,0 +1,122 @@
+---
+title: "Quick KYC Python SDK: Usage Guide and Code Examples"
+sidebarTitle: "Usage"
+description: "Learn how to submit verifications, check image quality, poll for results, and perform manual overrides using the Quick KYC Python SDK."
+---
+
+The sections below walk you through the most common integration patterns in order: quality-checking an image, submitting a verification, waiting for a result, and overriding a decision manually. Each example builds on the same initialized client so you can combine them into a single ingestion workflow.
+
+Assume the client has been initialized as follows for all examples on this page:
+
+```python
+from quick_kyc import QuickKYCClient
+
+client = QuickKYCClient(base_url="http://your-server:8080")
+```
+
+---
+
+## 1. Check Image Quality
+
+Before submitting a document to the full processing pipeline, you should verify that the image is sharp and was not captured from a screen. This avoids wasting pipeline capacity on submissions that will fail forensic checks.
+
+```python
+import base64
+from quick_kyc import QuickKYCClient
+
+client = QuickKYCClient(base_url="http://your-server:8080")
+
+with open("passport_front.jpg", "rb") as f:
+    b64_image = base64.b64encode(f.read()).decode("utf-8")
+
+quality = client.check_quality(image=b64_image)
+
+if quality["isBlurred"]:
+    print("Image is too blurry — please re-capture")
+elif quality["isScreenRecaptureLikely"]:
+    print("Screen recapture detected — photograph the physical document")
+else:
+    print(f"Quality OK — overall score: {quality['overallScore']}")
+```
+
+The `check_quality` call is synchronous and fast — it performs no OCR or fraud analysis. Use it as a lightweight gate before every submission.
+
+---
+
+## 2. Submit a Verification
+
+Once the image passes quality checks, create a verification record. The function below encodes the document, runs the quality gate, and submits it in one step:
+
+```python
+import base64
+
+def verify_document(file_path: str, email: str) -> str:
+    with open(file_path, "rb") as f:
+        b64_string = base64.b64encode(f.read()).decode("utf-8")
+
+    quality = client.check_quality(image=b64_string)
+    if quality.get("isScreenRecaptureLikely", False):
+        raise ValueError("Submission rejected: Screen recapture detected.")
+    if quality.get("isBlurred", False):
+        raise ValueError("Submission rejected: Image is too blurry.")
+
+    record = client.create_verification(
+        document_front=b64_string,
+        webhook_url="https://your-app.com/webhooks/kyc-callback"
+    )
+    return record["id"]
+```
+
+`create_verification` returns a dict containing the new record's `id` (e.g., `"KYC-a9fd8241"`) and an initial `status` of `"PENDING"`. Store this ID — you will need it to retrieve results.
+
+---
+
+## 3. Poll for Results
+
+Verification processing happens asynchronously in the background. The simplest way to wait for a result during development or low-volume workflows is a polling loop:
+
+```python
+import time
+
+def wait_for_result(verification_id: str, max_retries: int = 10):
+    for i in range(max_retries):
+        record = client.get_verification(verification_id)
+        if record["status"] != "PENDING":
+            return record
+        time.sleep(2)
+    raise TimeoutError(f"Verification {verification_id} did not complete in time")
+```
+
+The loop checks the record every two seconds and returns as soon as the status moves out of `"PENDING"` — for example, to `"APPROVED"`, `"REJECTED"`, or `"UNDER_REVIEW"`.
+
+<Tip>
+  For production workloads, use webhooks instead of polling. Pass a `webhook_url` when calling `create_verification` and Quick KYC will POST the completed record to your endpoint the moment processing finishes — no polling loop needed.
+</Tip>
+
+---
+
+## 4. Manual Status Override
+
+Compliance officers can programmatically approve or reject a record after human review. The example below shows an approval, but the same pattern applies to rejections — set `status="REJECTED"` and optionally provide `fraud_type` and `missed_signals`:
+
+```python
+from quick_kyc import QuickKYCClient, NotFoundError
+
+client = QuickKYCClient()
+
+def manual_approve(verification_id: str, reviewer_name: str):
+    try:
+        updated_record = client.update_verification_status(
+            verification_id=verification_id,
+            status="APPROVED",
+            notes=f"Approved manually by compliance officer: {reviewer_name}."
+        )
+        print(f"Record {verification_id} is now APPROVED.")
+        return updated_record
+    except NotFoundError:
+        print(f"Record {verification_id} could not be found.")
+    except Exception as e:
+        print(f"Failed to override status: {e}")
+```
+
+Every call to `update_verification_status` appends a timestamped entry to the audit log, recording the actor, action, and the new status — giving you a full chain-of-custody trail automatically.

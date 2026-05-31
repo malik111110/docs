@@ -1,0 +1,154 @@
+---
+title: "GET /api/verifications/:id — Get Verification Details"
+sidebarTitle: "Get Verification"
+description: "GET /api/verifications/:id — retrieve full verification details including OCR fields, trust scores, and forensic risk signals for a single record."
+---
+
+The single-record endpoint returns the complete verification payload for a given record ID — everything the Quick KYC engine extracted, scored, and flagged. This is the endpoint you poll after submitting a document, and it is also what powers the detail view in the audit portal. The response nests OCR-extracted field values with per-field confidence scores, a trust index describing image quality, and an array of discrete risk signals that explain why a particular score was assigned.
+
+## Endpoint
+
+```
+GET /api/verifications/:id
+```
+
+## Path Parameter
+
+<ParamField path="id" type="string" required>
+  The `KYC-xxxxxxxx` record ID returned by `POST /api/verifications` at submission time.
+</ParamField>
+
+### Example Request
+
+```bash
+curl http://your-server:8080/api/verifications/KYC-a9fd8241
+```
+
+## Response — 200 OK
+
+<ResponseField name="id" type="string">
+  Unique record identifier (`KYC-xxxxxxxx` format).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Subject's full name as extracted from the document.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current compliance status: `PENDING`, `UNDER_REVIEW`, `APPROVED`, or `REJECTED`.
+</ResponseField>
+
+<ResponseField name="riskScore" type="integer">
+  Composite fraud risk score from `0` to `100`.
+</ResponseField>
+
+<ResponseField name="extractedData" type="object">
+  A map of field names to their extracted values and per-field OCR confidence scores.
+
+  <Expandable title="extractedData fields">
+    <ResponseField name="name" type="object">
+      Extracted full name from the document.
+      <Expandable title="properties">
+        <ResponseField name="value" type="string">The extracted text value.</ResponseField>
+        <ResponseField name="confidence" type="float">OCR confidence score between `0` and `1`.</ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="dob" type="object">
+      Date of birth as printed on the document.
+      <Expandable title="properties">
+        <ResponseField name="value" type="string">Extracted date string (e.g., `"1988-11-14"`).</ResponseField>
+        <ResponseField name="confidence" type="float">OCR confidence score between `0` and `1`.</ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="idNumber" type="object">
+      Document identity number (national ID number, passport number, etc.).
+      <Expandable title="properties">
+        <ResponseField name="value" type="string">Extracted ID number string.</ResponseField>
+        <ResponseField name="confidence" type="float">OCR confidence score between `0` and `1`.</ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="expiryDate" type="object">
+      Document expiry date. A past date triggers an expiration risk signal automatically.
+      <Expandable title="properties">
+        <ResponseField name="value" type="string">Extracted expiry date string (e.g., `"2021-05-10"`).</ResponseField>
+        <ResponseField name="confidence" type="float">OCR confidence score between `0` and `1`.</ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="trustIndex" type="object">
+  Image quality and capture authenticity indicators derived from the submitted document images.
+
+  <Expandable title="trustIndex fields">
+    <ResponseField name="overallScore" type="float">
+      Composite trust score from `0` to `100`. Combines sharpness, shadow, and recapture sub-scores.
+    </ResponseField>
+    <ResponseField name="sharpnessScore" type="float">
+      Image sharpness measurement normalised to a `0`–`100` scale. Values below `80` are considered blurry.
+    </ResponseField>
+    <ResponseField name="isBlurred" type="boolean">
+      `true` if the sharpness score falls below the blur threshold.
+    </ResponseField>
+    <ResponseField name="hasShadows" type="boolean">
+      `true` if shadow overlay patterns were detected on the document surface, which can obscure security features.
+    </ResponseField>
+    <ResponseField name="isScreenRecaptureLikely" type="boolean">
+      `true` if image analysis determines the document was photographed from a screen rather than captured directly from a physical document.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="riskSignals" type="array">
+  An ordered list of discrete forensic flags raised by the analysis engine.
+
+  <Expandable title="riskSignals item fields">
+    <ResponseField name="id" type="string">
+      Machine-readable signal identifier (e.g., `"r_expired"`, `"r_shadow_overlay"`).
+    </ResponseField>
+    <ResponseField name="type" type="string">
+      Severity level: `"danger"` (blocks approval), `"warning"` (requires review), or `"info"` (contextual note).
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      Human-readable description of what triggered the signal.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "id": "KYC-a9fd8241",
+  "name": "Elena Rostova",
+  "status": "UNDER_REVIEW",
+  "riskScore": 88,
+  "extractedData": {
+    "name":       { "value": "ELENA ROSTOVA", "confidence": 0.96 },
+    "dob":        { "value": "1988-11-14",    "confidence": 0.95 },
+    "idNumber":   { "value": "ID-99281-ER",   "confidence": 0.92 },
+    "expiryDate": { "value": "2021-05-10",    "confidence": 0.99 }
+  },
+  "trustIndex": {
+    "overallScore":           68.0,
+    "sharpnessScore":         82.0,
+    "isBlurred":              false,
+    "hasShadows":             true,
+    "isScreenRecaptureLikely": false
+  },
+  "riskSignals": [
+    {
+      "id":      "r_expired",
+      "type":    "danger",
+      "message": "Document has expired on 2021-05-10."
+    }
+  ]
+}
+```
+
+<Note>
+  If `status` is still `PENDING`, the `extractedData` map and `riskSignals` array will be empty — background processing has not yet completed. Wait a few seconds and poll this endpoint again until the status transitions to a terminal value.
+</Note>

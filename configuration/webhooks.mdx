@@ -1,0 +1,131 @@
+---
+title: "Configure Webhooks to Receive Quick KYC Verification Results"
+sidebarTitle: "Webhooks"
+description: "Pass a webhookUrl in your POST /api/verifications request so Quick KYC delivers the full result to your endpoint as soon as OCR processing finishes."
+---
+
+Quick KYC processes documents asynchronously. After you submit a verification, the OCR extraction and risk evaluation pipeline runs in the background — which means your application does not receive results immediately. Rather than polling `GET /api/verifications/:id` in a loop, you can provide a `webhookUrl` in your submission request and let Quick KYC push the completed result directly to your endpoint when processing finishes.
+
+## Setting Up a Webhook
+
+Follow these steps to receive results automatically:
+
+<Steps>
+  <Step title="Stand up an HTTP endpoint">
+    Create a route in your application that accepts `POST` requests. The URL must be reachable from the Quick KYC server at the time processing completes — for example:
+
+    ```
+    https://your-app.com/webhooks/kyc
+    ```
+
+    Your handler should return an HTTP `200` response as quickly as possible. Do any heavy processing (database writes, downstream notifications) asynchronously after acknowledging receipt.
+  </Step>
+
+  <Step title="Submit a verification with webhookUrl">
+    Include the `webhookUrl` field in your `POST /api/verifications` request body alongside the document images:
+
+    ```bash
+    curl -X POST http://your-server:8080/api/verifications \
+      -H "Content-Type: application/json" \
+      -d '{
+        "documentFront": "<base64_jpeg_string>",
+        "documentBack": "<base64_jpeg_string>",
+        "selfie": "<base64_jpeg_string>",
+        "webhookUrl": "https://your-app.com/webhooks/kyc"
+      }'
+    ```
+
+    The server responds immediately with HTTP 201 and a `PENDING` record. OCR extraction and risk scoring continue in the background.
+
+    ```json
+    {
+      "id": "KYC-a9fd8241",
+      "status": "PENDING",
+      "submittedAt": "2026-05-31T16:50:00Z",
+      "createdAt": "2026-05-31T16:50:00Z",
+      "updatedAt": "2026-05-31T16:50:00Z"
+    }
+    ```
+  </Step>
+
+  <Step title="Receive the result payload">
+    When processing completes, Quick KYC sends a `POST` request to your `webhookUrl` with the full verification result as the JSON body. Handle it in your endpoint and return `200`.
+  </Step>
+</Steps>
+
+<Tip>
+  For local development, your Quick KYC server cannot reach `localhost` on your laptop directly. Use a tunneling tool such as [ngrok](https://ngrok.com) or [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) to expose a local port to the network so the server can deliver webhook payloads during testing.
+</Tip>
+
+## Webhook Payload Reference
+
+Quick KYC delivers the complete verification result as the POST body. Below is an example payload with all fields populated:
+
+```json
+{
+  "id": "KYC-a9fd8241",
+  "name": "Elena Rostova",
+  "status": "UNDER_REVIEW",
+  "riskScore": 88,
+  "extractedData": {
+    "name":       { "value": "ELENA ROSTOVA", "confidence": 0.96 },
+    "dob":        { "value": "1988-11-14",    "confidence": 0.95 },
+    "idNumber":   { "value": "ID-99281-ER",   "confidence": 0.92 },
+    "expiryDate": { "value": "2021-05-10",    "confidence": 0.99 }
+  },
+  "trustIndex": {
+    "overallScore":             68.0,
+    "sharpnessScore":           82.0,
+    "isBlurred":                false,
+    "hasShadows":               true,
+    "isScreenRecaptureLikely":  false
+  },
+  "riskSignals": [
+    {
+      "id":      "r_expired",
+      "type":    "danger",
+      "message": "Document has expired on 2021-05-10."
+    }
+  ]
+}
+```
+
+### Field Descriptions
+
+<ResponseField name="id" type="string">
+  The unique verification record ID. Match this against the `id` returned at submission time to associate the result with your internal record.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The full name extracted from the submitted identity document. This is a convenience top-level field mirroring `extractedData.name.value`.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  The final processing status. One of `APPROVED`, `UNDER_REVIEW`, or `REJECTED`.
+</ResponseField>
+
+<ResponseField name="riskScore" type="number">
+  A composite fraud and tamper probability score from 0 to 100. Scores below 20 are low risk, 20–60 are medium, and above 60 are high risk.
+</ResponseField>
+
+<ResponseField name="extractedData" type="object">
+  A map of document fields to their OCR-extracted values. Each entry contains a `value` string and a `confidence` float (0–1) representing extraction certainty.
+</ResponseField>
+
+<ResponseField name="trustIndex" type="object">
+  Image quality and authenticity scores for the submitted document scan, including `sharpnessScore`, shadow detection (`hasShadows`), and screen-recapture likelihood (`isScreenRecaptureLikely`).
+</ResponseField>
+
+<ResponseField name="riskSignals" type="array">
+  An array of forensic flags raised during processing. Each signal includes an `id`, a severity `type` (e.g., `danger`, `warning`), and a human-readable `message` describing the detected anomaly.
+</ResponseField>
+
+## Best Practices
+
+- **Respond with HTTP 200 immediately.** Your webhook handler should acknowledge the request right away and offload any business logic — database writes, alerts, or downstream API calls — to a background worker or queue.
+- **Log the full payload.** Store the raw JSON body for each webhook delivery. This gives you a complete audit trail and makes it easy to replay or inspect results later.
+- **Match on `id`.** When a webhook arrives, look up the `id` field in your database to find the corresponding submission record before updating its state.
+
+<Warning>
+  If your webhook endpoint is unreachable or returns a non-2xx HTTP status, the webhook delivery may not be retried. Your verification result is **always available** via `GET /api/verifications/:id` — use that endpoint to retrieve the result manually if a delivery is missed.
+</Warning>

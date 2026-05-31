@@ -1,0 +1,126 @@
+---
+title: "How Quick KYC Processes Documents"
+sidebarTitle: "How It Works"
+description: "Learn how Quick KYC processes identity documents through quality checks, OCR extraction, fraud analysis, and compliance review — all on your infrastructure."
+---
+
+Quick KYC evaluates every identity document through a structured five-step pipeline — from the moment an operator uploads a scan to the final compliance decision. Every stage of this pipeline runs on your own infrastructure, so no personally identifiable information (PII) ever leaves your environment or reaches an external API.
+
+<Steps>
+
+  <Step title="Capture Quality Check">
+    Before a document can be submitted for processing, the **Capture Quality Intelligence Engine** inspects the uploaded image and determines whether it meets the minimum standards for accurate extraction.
+
+    The engine evaluates three quality dimensions:
+
+    <CardGroup cols={3}>
+      <Card title="Sharpness" icon="eye">
+        An image sharpness score is computed across the document. If the score falls below the acceptable threshold, the document is considered too blurry for reliable OCR and is flagged automatically.
+      </Card>
+      <Card title="Shadow Detection" icon="sun">
+        Local grid averages are compared to identify uneven lighting. Shadows can obscure holograms, text, and security features, so they must be resolved before submission.
+      </Card>
+      <Card title="Screen Recapture Detection" icon="display">
+        The engine analyses the document for repeating digital patterns and fringe artefacts. These patterns indicate the scan is a photograph of a screen rather than a physical document.
+      </Card>
+    </CardGroup>
+
+    <Warning>
+      If screen recapture is detected or blur severity is above the acceptable threshold, the submission button is disabled. You must re-capture the physical document directly before proceeding.
+    </Warning>
+  </Step>
+
+  <Step title="OCR Extraction">
+    Once the image passes quality checks, Quick KYC performs **multi-pass OCR** to maximise the accuracy of extracted text. Three passes are run in sequence:
+
+    | Pass | Method | Purpose |
+    |---|---|---|
+    | **Raw Pass** | OCR on the original image | Baseline extraction with no preprocessing |
+    | **Preprocessed Pass** | Contrast enhancement and shadow normalisation | Recovers text in low-contrast or unevenly lit regions |
+    | **MRZ Pass** | Crops the lower section of the document and restricts recognised characters to `A–Z 0–9 <` | Parses the machine-readable zone on passports and travel documents |
+
+    The engine extracts the following fields from every supported document type:
+
+    - **Full Name**
+    - **Date of Birth**
+    - **Document / ID Number**
+    - **Expiry Date**
+
+    Each extracted field is assigned a **confidence score** between 0 and 1. These scores are surfaced in the audit portal so compliance officers can focus their review on low-confidence fields.
+  </Step>
+
+  <Step title="Fraud & Forensic Analysis">
+    After text extraction, the forensic engine runs a suite of computer-vision checks to detect signs of document tampering or fabrication. All analysis is performed locally on your infrastructure — no cloud inference service is involved.
+
+    <AccordionGroup>
+      <Accordion title="Error Level Analysis (ELA)" icon="magnifying-glass">
+        The image is saved at 85 % compression quality and the pixel-level difference between the re-compressed and original versions is computed. Regions with unusually high re-compression variance are strong indicators of digital editing or copy-paste manipulation.
+      </Accordion>
+      <Accordion title="Geometry & Baseline Check" icon="ruler">
+        Character contour baselines are extracted across the document. Inconsistencies in text alignment — such as characters that sit above or below the expected baseline — indicate that text may have been overlaid on the original document.
+      </Accordion>
+      <Accordion title="Visual Patch Detection" icon="image">
+        The engine scans for solid flat-colour rectangles (used to redact original text) and red-hue anomalies around portrait regions. Red hue artifacts around the photo area are a signature of photo-swap tampering.
+      </Accordion>
+      <Accordion title="Visual Embeddings" icon="microchip">
+        The document is passed through a bundled visual classification model to produce a high-dimensional feature vector. This embedding serves as a **document fingerprint** that can be compared against known templates and flagged documents.
+      </Accordion>
+    </AccordionGroup>
+  </Step>
+
+  <Step title="Risk Scoring">
+    The outputs of the quality, OCR, and forensic stages are combined into a single **risk score** between **0 and 100**, where a higher number indicates a greater likelihood of fraud or document tampering.
+
+    The score is part of a `trustIndex` object that contains the following fields:
+
+    ```json
+    {
+      "overallScore": 74,
+      "sharpnessScore": 91.3,
+      "isBlurred": false,
+      "hasShadows": false,
+      "isScreenRecaptureLikely": false
+    }
+    ```
+
+    Alongside the `trustIndex`, the pipeline produces a `riskSignals` array. Each entry in the array describes a specific finding:
+
+    ```json
+    [
+      {
+        "id": "ela_anomaly",
+        "type": "danger",
+        "message": "Significant ELA variance detected — possible digital edit."
+      },
+      {
+        "id": "shadow_interference",
+        "type": "warning",
+        "message": "Uneven lighting may have affected OCR accuracy."
+      }
+    ]
+    ```
+
+    Signal `type` values are `danger`, `warning`, or `info`, reflecting severity. See [Risk Scoring](/concepts/risk-scoring) for a full breakdown of every signal type.
+  </Step>
+
+  <Step title="Compliance Review">
+    The completed risk assessment is written to the database and the verification record enters the **compliance review queue**. From here, the record moves through a defined set of statuses:
+
+    ```
+    PENDING → UNDER_REVIEW → APPROVED
+                           → REJECTED
+    ```
+
+    - **PENDING** — the record has been accepted and is queued for background OCR processing.
+    - **UNDER_REVIEW** — OCR is complete and one or more risk signals were detected; a compliance officer must make a decision.
+    - **APPROVED** — the document has been verified successfully, either automatically or by manual override.
+    - **REJECTED** — the document was rejected due to fraud indicators, expiry, or failed field matching.
+
+    Compliance officers review records in the Admin Dashboard, inspect side-by-side comparisons of the original scan and extracted values, and can override the status at any time. For the full state machine and webhook behaviour, see [Verification Lifecycle](/concepts/verification-lifecycle).
+
+    <Note>
+      Because all processing is local, the compliance audit trail — including every status change, actor, and timestamp — is stored entirely within your own on-premises instance.
+    </Note>
+  </Step>
+
+</Steps>

@@ -1,0 +1,56 @@
+---
+title: "Quick KYC REST API — Endpoints, Errors, and Formats"
+sidebarTitle: "Overview"
+description: "The Quick KYC REST API lets you submit verifications, retrieve results, update compliance status, and monitor the OCR processing node programmatically."
+---
+
+The Quick KYC REST API is a JSON-over-HTTP interface that gives you programmatic control over every stage of the identity verification pipeline — from initial document submission through compliance adjudication and system health monitoring. All endpoints are available on the same host and port where Quick KYC is installed, with no external dependencies or third-party services involved.
+
+## Base URL
+
+```
+http://your-server:8080/api
+```
+
+Replace `your-server` with the hostname or IP address of the machine running Quick KYC. The port is configured by your administrator during installation — `8080` is the default. Every endpoint in this reference is relative to that base URL.
+
+## Content Type
+
+All requests must send and receive `Content-Type: application/json`. Every request body and response body is UTF-8 encoded JSON.
+
+## Authentication
+
+Quick KYC does not require an API key or authentication token on local installations. Access control is enforced at the network level — see the [Authentication](/api/authentication) page for recommended patterns.
+
+## Record ID Format
+
+Every verification record is assigned a unique identifier at creation time. IDs follow the pattern `KYC-xxxxxxxx`, where the suffix is a random eight-character hex string — for example, `KYC-a9fd8241`. You will use this ID to retrieve details, post status updates, and fetch AI explanations.
+
+## Available Endpoints
+
+The table below lists every endpoint exposed by the API.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/verifications` | Submit a new document verification |
+| `GET` | `/api/verifications` | List all verification records |
+| `GET` | `/api/verifications/:id` | Get full details for a single record |
+| `PATCH` | `/api/verifications/:id/status` | Manually override compliance status |
+| `GET` | `/api/verifications/:id/explain` | Get AI plain-language explanation |
+| `POST` | `/api/verifications/check-quality` | Check image quality before submission |
+| `GET` | `/api/audit-logs` | Retrieve system-wide audit log entries |
+| `GET` | `/api/stats/ocr-node` | Get OCR node health and throughput metrics |
+
+## Error Responses
+
+When the server returns a `4xx` or `5xx` status code, the response body contains a JSON object with an `error` field describing what went wrong. Always check the HTTP status code alongside the response body when handling errors in your integration.
+
+```json
+{
+  "error": "Verification record not found."
+}
+```
+
+<Note>
+  **Asynchronous processing:** `POST /api/verifications` is non-blocking. The endpoint returns immediately with a `201 Created` response and a `PENDING` status. OCR extraction, fraud analysis, and risk scoring happen in the background. Poll `GET /api/verifications/:id` or configure a `webhookUrl` in your submission to receive the completed result.
+</Note>

@@ -1,0 +1,73 @@
+---
+title: "GET /api/audit-logs — System Compliance Logs"
+sidebarTitle: "Audit Logs"
+description: "GET /api/audit-logs — retrieve all system-wide compliance events including status overrides, admin actions, and server lifecycle changes."
+---
+
+The audit-logs endpoint gives you a complete, chronological record of every compliance-relevant action taken inside your Quick KYC deployment. You can use it to prove chain-of-custody for any verification decision, satisfy internal or external audits, and feed structured event data into external compliance tooling.
+
+## Endpoint
+
+```
+GET /api/audit-logs
+```
+
+This endpoint accepts no query parameters. Every call returns the full log history in ascending chronological order.
+
+## Request Example
+
+```bash
+curl -X GET http://your-server:8080/api/audit-logs \
+  -H "Content-Type: application/json"
+```
+
+## Response — 200 OK
+
+The response is a JSON array where each element represents a single audit event. The fields returned for each entry are described below.
+
+<ResponseField name="id" type="integer" required>
+  Unique auto-incrementing identifier for the log entry.
+</ResponseField>
+
+<ResponseField name="timestamp" type="string" required>
+  ISO 8601 date-time string indicating exactly when the action occurred (e.g., `"2026-05-31T16:55:00Z"`).
+</ResponseField>
+
+<ResponseField name="actor" type="string" required>
+  Display name of the administrator or system process that performed the action (e.g., `"John Doe"`).
+</ResponseField>
+
+<ResponseField name="action" type="string" required>
+  Machine-readable action identifier. Common values include `OVERRIDE_STATUS` and `SERVER_START`.
+</ResponseField>
+
+<ResponseField name="target" type="string" required>
+  The verification record ID that was affected by the action (e.g., `"KYC-a9fd8241"`). For system-level events with no associated record, this field may be an empty string.
+</ResponseField>
+
+<ResponseField name="details" type="string" required>
+  Human-readable description of what changed (e.g., `"Status updated from UNDER_REVIEW to APPROVED"`).
+</ResponseField>
+
+### Example Response Body
+
+```json
+[
+  {
+    "id": 1,
+    "timestamp": "2026-05-31T16:55:00Z",
+    "actor": "John Doe",
+    "action": "OVERRIDE_STATUS",
+    "target": "KYC-a9fd8241",
+    "details": "Status updated from UNDER_REVIEW to APPROVED"
+  }
+]
+```
+
+<Note>
+  Audit logs are **append-only**. Once an entry is written, it cannot be deleted or modified — even by an administrator. This guarantees the integrity of your compliance trail.
+</Note>
+
+<Tip>
+  You can pipe the JSON response directly into your SIEM system or process it with a script to generate periodic compliance reports. Because each entry carries a structured `action` field, filtering by event type is straightforward.
+</Tip>

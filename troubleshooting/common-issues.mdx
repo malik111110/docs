@@ -1,0 +1,135 @@
+---
+title: "Troubleshooting Common Quick KYC Verification Issues"
+sidebarTitle: "Common Issues"
+description: "Fix the most frequent Quick KYC problems: stuck verifications, quality check failures, webhook delivery issues, and API error responses."
+---
+
+Quick KYC is designed to handle document ingestion and identity verification reliably, but certain conditions — such as overloaded worker nodes, poor image capture quality, or misconfigured webhook endpoints — can cause unexpected behavior. The accordion sections below walk you through the most frequently encountered issues, their root causes, and the exact steps you should take to resolve each one.
+
+<AccordionGroup>
+
+  <Accordion title="Verification stuck in PENDING status">
+    **Cause:** The OCR worker pool may be overloaded with queued jobs, or the preprocessor node may be temporarily unavailable.
+
+    **Resolution:**
+
+    Call `GET /api/stats/ocr-node` and inspect the response for the `queueDepth`, `cpuUsage`, and `gpuUsage` fields:
+
+    ```json
+    {
+      "queueDepth": 14,
+      "cpuUsage": 98.1,
+      "gpuUsage": 99.7
+    }
+    ```
+
+    - If `queueDepth` is growing steadily, the system is under load. Wait for the queue to drain — verifications will complete in order.
+    - If `queueDepth` remains constant over several minutes and no new records transition out of `PENDING`, the worker may be stalled.
+
+    <Warning>
+      A stalled queue does not self-resolve. Contact your system administrator to restart the OCR processing daemon if the queue does not decrease after a reasonable wait period.
+    </Warning>
+  </Accordion>
+
+  <Accordion title='Quality check fails with "Screen recapture detected"'>
+    **Cause:** Quick KYC's Capture Quality Intelligence Engine determined that the uploaded image is a photograph of a digital screen (monitor, phone, or tablet) rather than a scan of the physical document. The system uses Fourier periodic analysis and moiré fringe detection to identify the regular pixel-grid patterns that digital displays produce.
+
+    **Resolution:**
+
+    - Place the **physical ID document** flat on a neutral, non-reflective surface.
+    - Photograph it directly with the camera — do **not** take a picture of the document displayed on a screen.
+    - Ensure even lighting with no glare from the document surface.
+
+    <Tip>
+      Use the `POST /api/verifications/check-quality` endpoint before full submission. If `isScreenRecaptureLikely` returns `true`, re-capture the physical document before proceeding.
+    </Tip>
+  </Accordion>
+
+  <Accordion title='Quality check fails with "isBlurred: true"'>
+    **Cause:** The sharpness score computed by the Laplacian variance algorithm fell below the acceptance threshold of **80**. This typically happens when the camera is moving during capture, the document is not lying flat, or the image resolution is too low.
+
+    **Resolution:**
+
+    1. Hold the camera completely steady, or use a document scanner stand if one is available.
+    2. Lay the document flat on a hard surface — do not hold it in the air.
+    3. Ensure the lens is clean and the image is in sharp focus before capturing.
+    4. If your capture device allows it, increase the output resolution or use a higher-quality camera.
+
+    <Note>
+      The quality check endpoint returns `sharpnessScore` alongside `isBlurred`. A score of 80 or above is required for the submission button to remain active in the onboarding UI.
+    </Note>
+  </Accordion>
+
+  <Accordion title="OCR extraction confidence scores are low">
+    **Cause:** Shadows, lens glare, document skew, or a partial crop of the document corners degrade the OCR model's ability to isolate and read text bounding boxes accurately. Quick KYC uses multi-pass OCR-agreement voting, and conflicting passes lower the final confidence value.
+
+    **Resolution:**
+
+    - Re-capture the document under **even, diffuse lighting** — avoid direct overhead light that creates specular reflections on laminated ID surfaces.
+    - Make sure **all four corners** of the document are fully visible in the frame with no cropping.
+    - Keep the document parallel to the camera — avoid holding it at an angle that introduces perspective skew.
+
+    <Tip>
+      Always call `POST /api/verifications/check-quality` first. A high `overallScore` and no active warnings are strong predictors of good OCR confidence output downstream.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="Webhook not receiving results">
+    **Cause:** The URL provided in the `webhookUrl` field is unreachable from the Quick KYC server, is returning a non-2xx HTTP status code, or a network-level firewall is blocking outbound connections from the server.
+
+    **Resolution:**
+
+    1. Confirm the webhook endpoint is **publicly reachable** from the machine running Quick KYC — not just from your local development environment.
+    2. Ensure your endpoint returns an HTTP `200 OK` response promptly after receiving the payload.
+    3. Check any firewall rules or reverse-proxy configurations that might block outbound POST requests from the server.
+
+    <Note>
+      Webhook delivery failure does **not** mean the verification was lost. You can always retrieve the full result by polling `GET /api/verifications/:id` using the ID returned at submission time.
+    </Note>
+  </Accordion>
+
+  <Accordion title="API returns HTTP 400 Bad Request">
+    **Cause:** The request body is missing a required field, contains malformed JSON, or the `documentFront` value is not a valid base64-encoded JPEG string.
+
+    **Resolution:**
+
+    - Verify that `documentFront` is present in every submission request — it is the only required image field.
+    - Confirm the image is encoded as a **base64 JPEG** string (not PNG, WebP, or raw binary data).
+    - Validate your JSON body structure against the API reference before sending.
+
+    ```json
+    {
+      "documentFront": "<valid_base64_jpeg_string>"
+    }
+    ```
+
+    <Warning>
+      Submitting an image encoded in a format other than JPEG, or forgetting to base64-encode it, are the most common causes of HTTP 400 errors.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="API returns HTTP 404 Not Found">
+    **Cause:** The verification ID provided in the URL path does not exist in the Quick KYC database. This can happen if the ID was mistyped, truncated, or if you are querying a different environment (e.g., staging vs. production).
+
+    **Resolution:**
+
+    - Copy the `id` value **exactly** from the `POST /api/verifications` response. IDs follow the format `KYC-xxxxxxxx` (e.g., `KYC-a9fd8241`) and are **case-sensitive**.
+    - Confirm you are sending the request to the correct Quick KYC server instance and port (`8080` by default).
+    - Do not manually construct or guess IDs — always use the value returned at creation time.
+  </Accordion>
+
+  <Accordion title="API returns HTTP 500 Internal Server Error">
+    **Cause:** An unhandled server-side error occurred during document processing. This may be caused by a misconfiguration, an out-of-memory condition on the OCR node, or an unexpected input that the pipeline could not handle.
+
+    **Resolution:**
+
+    1. Wait a short period (30–60 seconds) and retry the request — transient errors often resolve on their own.
+    2. If the error persists for the same document, try submitting a different document to determine whether the issue is input-specific or system-wide.
+    3. If the error continues across multiple requests or documents, contact your system administrator and provide the affected verification ID, the approximate timestamp, and the document type you were submitting.
+
+    <Warning>
+      Repeated HTTP 500 errors on the same input may indicate a corrupted image or an unsupported document variant. Contact your administrator with the details of the failing request so they can investigate on the server side.
+    </Warning>
+  </Accordion>
+
+</AccordionGroup>

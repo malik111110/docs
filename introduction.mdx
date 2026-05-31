@@ -1,0 +1,74 @@
+---
+title: "Quick KYC: On-Premises Identity Verification Platform"
+sidebarTitle: "Introduction"
+description: "Quick KYC verifies government-issued IDs, passports, and driver's licenses on your own servers. No document data leaves your infrastructure."
+---
+
+Quick KYC is an on-premises identity verification platform built for compliance teams and developers who cannot afford to send sensitive document data to third-party cloud services. Every stage of the verification pipeline — OCR extraction, fraud detection, image quality analysis, and AI-generated explanations — runs entirely within your own infrastructure. You stay in control of your data, your audit trail, and your compliance posture.
+
+## Key Capabilities
+
+<CardGroup cols={2}>
+  <Card title="Multi-Pass OCR with Confidence Scoring" icon="scan">
+    Extracts name, date of birth, ID number, and expiry date from government-issued IDs, passports, and driver's licenses. Each field is returned with a per-field confidence score so you know exactly how certain the system is.
+  </Card>
+  <Card title="Automated Fraud Detection" icon="shield-halved">
+    Runs Error Level Analysis (ELA), geometry consistency checks, and recapture spoofing detection on every submission before it reaches a human reviewer.
+  </Card>
+  <Card title="Real-Time Image Quality Checks" icon="image">
+    A pre-submission quality endpoint flags blurry captures, shadow overlays, and screen-recapture spoofing synchronously — before you commit the document to the full pipeline.
+  </Card>
+  <Card title="Compliance Dashboard" icon="table-columns">
+    A browser-based dashboard lets compliance officers review flagged documents, inspect risk signals, override decisions, and view a tamper-evident audit log of every status change.
+  </Card>
+  <Card title="REST API & Python SDK" icon="code">
+    Submit verifications, poll for results, and trigger manual overrides programmatically using the REST API or the typed Python SDK wrapper.
+  </Card>
+  <Card title="Webhook Callbacks" icon="webhook">
+    Provide a `webhookUrl` at submission time and Quick KYC will POST the completed verification result directly to your application when processing finishes.
+  </Card>
+  <Card title="AI Explanation of Flagged Documents" icon="robot">
+    Call the `/explain` endpoint to receive a plain-language summary of why a document was flagged, which fields mismatched, and which visual indicators triggered the risk signals.
+  </Card>
+  <Card title="Full Data Sovereignty" icon="lock">
+    No external API calls are made during processing. Your documents, extracted fields, and audit logs never leave your network.
+  </Card>
+</CardGroup>
+
+## Who Quick KYC Is For
+
+Quick KYC is designed for two primary audiences who work together in the same verification workflow.
+
+**Compliance officers** use the dashboard to review documents that the automated pipeline has flagged as `UNDER_REVIEW`. You can inspect every extracted field, read the AI-generated explanation of the risk signals, and then approve or reject the record with annotated notes. Every decision you make is recorded in the audit log with a timestamp and your name.
+
+**Developers** integrate Quick KYC into existing onboarding or back-office workflows using the REST API or the Python SDK. You submit documents programmatically, receive a verification ID immediately, and retrieve results by polling or by supplying a webhook URL at submission time.
+
+## Verification Statuses
+
+Every verification record moves through a defined set of statuses during its lifecycle.
+
+| Status | Meaning |
+|---|---|
+| `PENDING` | The document has been received and is queued for background processing. |
+| `UNDER_REVIEW` | Automated processing is complete. One or more risk signals require a human compliance decision. |
+| `APPROVED` | The document has passed automated checks and/or been approved by a compliance officer. |
+| `REJECTED` | The document has been rejected — either automatically or by a compliance officer override. |
+
+<Note>
+  Status transitions are logged in the audit trail. You can retrieve the full history for any verification record, including the actor, timestamp, and any notes attached to each status change.
+</Note>
+
+## Privacy and Data Sovereignty
+
+Quick KYC makes no outbound network requests during document processing. OCR, fraud detection, image quality analysis, and AI explanation generation all run on your own hardware using locally hosted models and algorithms. You can operate Quick KYC in a fully air-gapped environment with no internet access required after installation.
+
+## Get Started
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Submit your first verification in minutes using the REST API or the Python SDK.
+  </Card>
+  <Card title="API Reference" icon="book-open" href="/api/overview">
+    Explore every endpoint, request body, and response schema in the full REST API reference.
+  </Card>
+</CardGroup>

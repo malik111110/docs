@@ -1,0 +1,92 @@
+---
+title: "Using the Quick KYC Compliance Dashboard Effectively"
+sidebarTitle: "Dashboard"
+description: "Monitor verification activity, interpret risk scores, and manage the full compliance queue from the Quick KYC admin dashboard in real time."
+---
+
+The Quick KYC compliance dashboard is your central command centre for monitoring every identity verification that passes through your on-premises deployment. It is designed for compliance officers who need an at-a-glance view of pipeline health, fraud rates, and individual record status — all without leaving a single interface. Everything on this page reflects live data drawn exclusively from your local nodes; no metrics are transmitted externally.
+
+## Key Metrics
+
+The top bar of the dashboard displays four headline figures that update in real time. Use these to gauge the overall health of your verification pipeline at a glance.
+
+<CardGroup cols={2}>
+  <Card title="Total Verifications" icon="chart-bar">
+    The cumulative count of all submitted verification records, accompanied by a week-over-week trend arrow. A sustained upward trend with a stable approval rate indicates healthy pipeline growth.
+  </Card>
+  <Card title="Approval Rate" icon="circle-check">
+    The percentage of processed documents that reached **`APPROVED`** status. Monitor this figure against your baseline — a sudden drop may signal an influx of fraudulent submissions or a misconfigured quality threshold.
+  </Card>
+  <Card title="Flagged Risk Rate" icon="triangle-exclamation">
+    The percentage of verifications currently held in manual review or terminated at **`REJECTED`** status. This is your primary fraud-pressure indicator.
+  </Card>
+  <Card title="Avg OCR Process Time" icon="clock">
+    End-to-end latency from submission to a final system decision, measured across all records processed in the current rolling window. Sustained spikes may indicate processing delays — use the OCR Pipeline Performance chart below for a more detailed view.
+  </Card>
+</CardGroup>
+
+## Analytics Visualisations
+
+Below the key metrics, two real-time charts give you deeper operational visibility.
+
+### Hourly Processing Volume
+
+A bar graph showing the number of verifications submitted in each hour of the current day. Use this chart to identify peak load windows, plan staffing for manual-review queues, and spot unusual submission spikes that may indicate a scripted or automated submission attempt.
+
+### OCR Pipeline Performance
+
+A stacked area chart displaying server resource utilisation broken down into two layers:
+
+| Layer | What It Represents |
+|---|---|
+| **OCR Extraction** | Processing capacity consumed by reading and parsing document text and PII fields |
+| **Risk Evaluation** | Processing capacity allocated to forensic signal analysis and fraud-probability scoring |
+
+Monitoring these two layers together helps you understand where processing time is being spent across your verification workload.
+
+## Ingestion Queue
+
+The **Ingestion Queue** is a searchable, sortable table listing every verification record in your system. Each row represents one client submission and surfaces the most important signals at a glance.
+
+### Risk Rating Bar
+
+Each record displays a colour-coded risk bar representing the calculated fraud and tamper probability:
+
+| Colour | Range | Meaning |
+|---|---|---|
+| 🟢 **Green** | < 20 % | Low risk — document passed all automated checks with high confidence |
+| 🟡 **Yellow** | 20 % – 60 % | Medium risk — one or more signals elevated; manual review recommended |
+| 🔴 **Red** | > 60 % | High risk — significant forensic anomalies detected; manual review required |
+
+### Status Badges
+
+Every record carries one of four status badges reflecting its current position in the verification lifecycle:
+
+<CardGroup cols={2}>
+  <Card title="PENDING" icon="hourglass-half">
+    The record has been submitted and is queued for processing. Verification has not yet completed. No compliance action is required yet.
+  </Card>
+  <Card title="UNDER_REVIEW" icon="magnifying-glass">
+    Automated scoring returned a risk level above the auto-approval threshold, or a quality signal triggered a hold. A compliance officer must open the audit portal to make a final decision.
+  </Card>
+  <Card title="APPROVED" icon="badge-check">
+    All automated checks passed and the extracted PII matched the submitted client details within configured confidence thresholds. The client's identity has been successfully verified.
+  </Card>
+  <Card title="REJECTED" icon="ban">
+    The document was determined to be fraudulent, expired, or failed PII matching — either by the automated engine or by a compliance officer during manual audit.
+  </Card>
+</CardGroup>
+
+## Finding a Specific Record
+
+Use the **search bar** at the top of the Ingestion Queue to locate any record instantly. You can search by:
+
+- **Full Name** — partial matches are supported
+- **Email Address** — exact or partial
+- **Record ID** — every verification is assigned a unique identifier in the format `KYC-xxxxxxxx` (e.g., `KYC-00483921`); use this format for unambiguous lookups in audit logs or support tickets
+
+The table also supports column-header sorting. Click any column heading once to sort ascending, and again to sort descending.
+
+<Tip>
+  Sort the Ingestion Queue by **Risk Score** in descending order at the start of each shift. This surfaces your highest-risk records at the top of the list so your team can prioritise the most critical manual reviews first, rather than working through the queue in submission order and potentially leaving high-risk items waiting.
+</Tip>

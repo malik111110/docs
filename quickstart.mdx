@@ -1,0 +1,340 @@
+---
+title: "Submit Your First Document Verification with Quick KYC"
+sidebarTitle: "Quickstart"
+description: "Submit your first document verification with Quick KYC using the REST API or Python SDK. Receive webhook callbacks or poll for results."
+---
+
+This guide walks you through the complete verification flow from first request to final result. You will point your client at the Quick KYC server, run a pre-submission image quality check, submit a document for verification, and then retrieve the outcome — either by polling or by receiving a webhook callback. Every step is shown with both the REST API and the Python SDK side by side.
+
+<Note>
+  Quick KYC does not require authentication by default on local installs. Operators are expected to secure the server at the network level — for example, by binding the service to a private interface, placing it behind a firewall, or fronting it with an authenticating reverse proxy. Do not expose port `8080` to the public internet without additional access controls.
+</Note>
+
+<Steps>
+
+  <Step title="Point your client at the Quick KYC server">
+    Quick KYC runs on port `8080` by default. All REST endpoints are prefixed with `/api`. Substitute the hostname or IP address of your on-premises server for `your-server` in every example below.
+
+    <Tabs>
+      <Tab title="REST API">
+        Set your base URL as an environment variable or a constant in your application:
+
+        ```bash
+        export QUICK_KYC_BASE_URL="http://your-server:8080"
+        ```
+
+        All subsequent `curl` examples use this base URL. Replace it with the actual address of your Quick KYC deployment.
+      </Tab>
+      <Tab title="Python SDK">
+        The Python SDK is included in your Quick KYC installation bundle. Install it from the `sdk/` directory of your deployment package, then initialize the client:
+
+        ```bash
+        pip install -e /path/to/quick-kyc-sdk
+        ```
+
+        Replace `/path/to/quick-kyc-sdk` with the path to the `sdk/` directory extracted from your Quick KYC deployment package.
+
+        ```python
+        from quick_kyc import QuickKYCClient
+
+        client = QuickKYCClient(
+            base_url="http://your-server:8080",
+            timeout=12.0
+        )
+        ```
+
+        <Tip>
+          If you omit `base_url`, the client defaults to `http://localhost:8080` — convenient for local development.
+        </Tip>
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Check document image quality before submitting">
+    Before committing a document to the full processing pipeline, call the synchronous quality check endpoint. This catches blurry images, shadow overlays, and screen-recapture spoofing upfront — saving processing time and giving your users immediate feedback.
+
+    Send the document image as a base64-encoded JPEG string in the request body.
+
+    <Tabs>
+      <Tab title="REST API">
+        **Request**
+
+        ```bash
+        curl -X POST "$QUICK_KYC_BASE_URL/api/verifications/check-quality" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "image": "<base64_jpeg_string>"
+          }'
+        ```
+
+        **Response** `200 OK`
+
+        ```json
+        {
+          "overallScore": 85.0,
+          "sharpnessScore": 90.0,
+          "isBlurred": false,
+          "hasShadows": false,
+          "isScreenRecaptureLikely": false,
+          "screenRecaptureScore": 0.12,
+          "signals": {
+            "fftPeriodicPattern": 0.05,
+            "moireScore": 0.08,
+            "pixelGridScore": 0.1,
+            "contextualScreenFrame": 0.0,
+            "aspectRatioAnomaly": 0.0
+          },
+          "guidance": []
+        }
+        ```
+      </Tab>
+      <Tab title="Python SDK">
+        ```python
+        import base64
+        from quick_kyc import QuickKYCClient, ValidationError
+
+        client = QuickKYCClient(base_url="http://your-server:8080")
+
+        # Load and base64-encode your document image
+        with open("document_front.jpg", "rb") as f:
+            b64_image = base64.b64encode(f.read()).decode("utf-8")
+
+        quality = client.check_quality(image=b64_image)
+
+        if quality.get("isScreenRecaptureLikely"):
+            raise ValueError("Rejected: screen recapture detected.")
+        if quality.get("isBlurred"):
+            raise ValueError("Rejected: image is too blurry.")
+
+        print(f"Quality score: {quality['overallScore']}")
+        ```
+      </Tab>
+    </Tabs>
+
+    <Warning>
+      Proceed to submission only when `isBlurred` and `isScreenRecaptureLikely` are both `false`. Submitting poor-quality images increases the likelihood of an `UNDER_REVIEW` outcome and additional manual review time.
+    </Warning>
+  </Step>
+
+  <Step title="Submit the verification">
+    Once the image passes the quality check, submit it for full verification. Provide the front of the document as a base64-encoded JPEG. The back image and selfie are optional — include them when your document type or compliance policy requires them. Supply a `webhookUrl` if you want Quick KYC to push results to your application instead of polling.
+
+    The server stores the record immediately and returns a verification `id` with a status of `PENDING`. Background processing begins asynchronously.
+
+    <Tabs>
+      <Tab title="REST API">
+        **Request**
+
+        ```bash
+        curl -X POST "$QUICK_KYC_BASE_URL/api/verifications" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "documentFront": "<base64_jpeg_string>",
+            "documentBack": "<base64_jpeg_string>",
+            "selfie": "<base64_jpeg_string>",
+            "webhookUrl": "https://your-app.internal/webhooks/kyc"
+          }'
+        ```
+
+        **Response** `201 Created`
+
+        ```json
+        {
+          "id": "KYC-a9fd8241",
+          "status": "PENDING",
+          "documentFront": "<base64_jpeg_string>",
+          "submittedAt": "2026-05-31T16:50:00Z",
+          "createdAt": "2026-05-31T16:50:00Z",
+          "updatedAt": "2026-05-31T16:50:00Z"
+        }
+        ```
+      </Tab>
+      <Tab title="Python SDK">
+        ```python
+        from quick_kyc import QuickKYCClient, ServerError
+
+        client = QuickKYCClient(base_url="http://your-server:8080")
+
+        record = client.create_verification(
+            document_front=b64_image,
+            # document_back=b64_back,   # optional
+            # selfie=b64_selfie,        # optional
+            webhook_url="https://your-app.internal/webhooks/kyc"
+        )
+
+        verification_id = record["id"]
+        print(f"Submitted. ID: {verification_id}, Status: {record['status']}")
+        # → Submitted. ID: KYC-a9fd8241, Status: PENDING
+        ```
+      </Tab>
+    </Tabs>
+
+    <Tip>
+      Save the `id` returned in the response. You need it to poll for results or to look up the record in the compliance dashboard.
+    </Tip>
+  </Step>
+
+  <Step title="Poll for results">
+    After submitting, you can retrieve the full verification result by calling `GET /api/verifications/:id`. Poll this endpoint until the `status` field is no longer `PENDING`. Typical processing completes within a few seconds, depending on your hardware.
+
+    The response includes the extracted document fields with per-field confidence scores, the overall trust index, and any risk signals that were detected.
+
+    <Tabs>
+      <Tab title="REST API">
+        **Request**
+
+        ```bash
+        curl "$QUICK_KYC_BASE_URL/api/verifications/KYC-a9fd8241"
+        ```
+
+        **Response** `200 OK`
+
+        ```json
+        {
+          "id": "KYC-a9fd8241",
+          "name": "Elena Rostova",
+          "status": "UNDER_REVIEW",
+          "riskScore": 88,
+          "extractedData": {
+            "name":       { "value": "ELENA ROSTOVA", "confidence": 0.96 },
+            "dob":        { "value": "1988-11-14",    "confidence": 0.95 },
+            "idNumber":   { "value": "ID-99281-ER",   "confidence": 0.92 },
+            "expiryDate": { "value": "2021-05-10",    "confidence": 0.99 }
+          },
+          "trustIndex": {
+            "overallScore": 68.0,
+            "sharpnessScore": 82.0,
+            "isBlurred": false,
+            "hasShadows": true,
+            "isScreenRecaptureLikely": false
+          },
+          "riskSignals": [
+            {
+              "id": "r_expired",
+              "type": "danger",
+              "message": "Document has expired on 2021-05-10."
+            }
+          ]
+        }
+        ```
+      </Tab>
+      <Tab title="Python SDK">
+        ```python
+        import time
+        from quick_kyc import QuickKYCClient, NotFoundError
+
+        client = QuickKYCClient(base_url="http://your-server:8080")
+
+        # Poll until processing is complete
+        while True:
+            result = client.get_verification(verification_id)
+            if result["status"] != "PENDING":
+                break
+            time.sleep(2)
+
+        print(f"Status: {result['status']}")
+        print(f"Overall trust score: {result['trustIndex']['overallScore']}")
+
+        for signal in result.get("riskSignals", []):
+            print(f"[{signal['type'].upper()}] {signal['message']}")
+        ```
+
+        <Note>
+          A `status` of `UNDER_REVIEW` means the automated pipeline completed but flagged one or more risk signals that require a human compliance decision. An `APPROVED` or `REJECTED` status means processing — automated or manual — is fully resolved.
+        </Note>
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Receive results via webhook (alternative to polling)">
+    If you supplied a `webhookUrl` when submitting the verification, you do not need to poll. When processing completes, Quick KYC sends an HTTP `POST` request to that URL with the full verification result as the JSON body — the same payload structure returned by `GET /api/verifications/:id`.
+
+    Your webhook endpoint must return an HTTP `2xx` response to acknowledge receipt.
+
+    <Tabs>
+      <Tab title="REST API">
+        Quick KYC delivers the webhook with a `Content-Type: application/json` header. An example payload your endpoint receives:
+
+        ```json
+        {
+          "id": "KYC-a9fd8241",
+          "name": "Elena Rostova",
+          "status": "UNDER_REVIEW",
+          "riskScore": 88,
+          "extractedData": {
+            "name":       { "value": "ELENA ROSTOVA", "confidence": 0.96 },
+            "dob":        { "value": "1988-11-14",    "confidence": 0.95 },
+            "idNumber":   { "value": "ID-99281-ER",   "confidence": 0.92 },
+            "expiryDate": { "value": "2021-05-10",    "confidence": 0.99 }
+          },
+          "trustIndex": {
+            "overallScore": 68.0,
+            "sharpnessScore": 82.0,
+            "isBlurred": false,
+            "hasShadows": true,
+            "isScreenRecaptureLikely": false
+          },
+          "riskSignals": [
+            {
+              "id": "r_expired",
+              "type": "danger",
+              "message": "Document has expired on 2021-05-10."
+            }
+          ]
+        }
+        ```
+      </Tab>
+      <Tab title="Python SDK">
+        When using the SDK, pass `webhook_url` to `create_verification`. No additional SDK configuration is needed — Quick KYC handles the delivery server-side.
+
+        ```python
+        from quick_kyc import QuickKYCClient
+
+        client = QuickKYCClient(base_url="http://your-server:8080")
+
+        record = client.create_verification(
+            document_front=b64_image,
+            webhook_url="https://your-app.internal/webhooks/kyc"
+        )
+
+        # Quick KYC will POST the result to your webhook URL
+        # when processing completes. No polling required.
+        print(f"Awaiting callback for verification: {record['id']}")
+        ```
+
+        Your webhook handler (here shown as a minimal Flask example) receives the same JSON body as the polling response:
+
+        ```python
+        from flask import Flask, request
+
+        app = Flask(__name__)
+
+        @app.route("/webhooks/kyc", methods=["POST"])
+        def kyc_callback():
+            result = request.get_json()
+            verification_id = result["id"]
+            status = result["status"]
+            print(f"Verification {verification_id} completed with status: {status}")
+            # Handle UNDER_REVIEW, APPROVED, or REJECTED as needed
+            return "", 200
+        ```
+      </Tab>
+    </Tabs>
+
+    <Warning>
+      Quick KYC delivers webhooks from within your own network. Ensure that the host running Quick KYC can reach the URL you provide. Do not use `localhost` as the webhook host unless the Quick KYC server and your application run on the same machine.
+    </Warning>
+  </Step>
+
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book-open" href="/api/overview">
+    Explore every endpoint including status overrides, audit logs, AI explanations, and OCR node health metrics.
+  </Card>
+  <Card title="Introduction" icon="house" href="/introduction">
+    Learn about verification statuses, fraud detection capabilities, and who Quick KYC is designed for.
+  </Card>
+</CardGroup>

@@ -1,0 +1,98 @@
+---
+title: "Onboarding a New Client for Document Identity Verification"
+sidebarTitle: "Client Onboarding"
+description: "Walk through Quick KYC's onboarding wizard to enroll a new client, upload document scans, pass quality checks, and trigger OCR verification."
+---
+
+Quick KYC's onboarding wizard guides you through every step required to enroll a new client and submit their identity document for on-premises verification. Each stage is enforced sequentially — you cannot advance until the current step passes — so that only high-quality, tamper-free submissions reach the OCR pipeline. The sections below walk you through the full flow from initial data entry to background processing.
+
+<Steps>
+
+  <Step title="Enter Client Details">
+    Fill in the client's personal information exactly as it appears on their physical document. Quick KYC cross-references every value you enter here against the OCR-extracted fields during the audit stage, so precision matters.
+
+    | Field | Notes |
+    |---|---|
+    | **Full Name** | As printed on the document — no abbreviations |
+    | **Email Address** | Used for notifications and record lookup |
+    | **Date of Birth** | DD / MM / YYYY format |
+    | **Document Serial Number** | Passport book number, ID number, or licence number |
+    | **Document Type** | Passport, National ID, or Driver's License |
+    | **Country of Issuance** | ISO country of the issuing authority |
+
+    <Note>
+      The demographics you enter here serve as the ground-truth reference. During OCR processing, any field where the extracted value diverges from your input will be flagged with a confidence-drop indicator in the audit portal.
+    </Note>
+  </Step>
+
+  <Step title="Choose an Ingestion Profile">
+    Select the ingestion profile that matches your operational context. The profile determines which document image is fed into the quality and OCR pipeline.
+
+    <Tabs>
+      <Tab title="Clean Profile">
+        Uses a standard, clean sample document — for example, a Canadian Passport — with no forensic anomalies. Risk scores will be low, making this profile ideal for:
+
+        - Onboarding pipeline smoke tests
+        - Operator training sessions
+        - Integration validation in staging environments
+      </Tab>
+
+      <Tab title="Suspicious Profile">
+        Uses a sample document seeded with simulated fraud signatures — for example, an expired national ID with geometry deviations. This profile is designed to:
+
+        - Trigger the compliance review workflow end-to-end
+        - Validate that risk signals surface correctly in the audit portal
+        - Test your team's manual-review response procedures
+      </Tab>
+
+      <Tab title="Custom Scan">
+        Upload a real image file from your workstation or capture a live snapshot using your device's webcam. Use this profile for all genuine client verifications. Accepted formats are JPEG, PNG, and HEIC at a minimum resolution of 800 × 600 px.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Upload Document Scans">
+    Provide one or more image captures of the client's document. Quick KYC accepts the following scan surfaces:
+
+    <CardGroup cols={3}>
+      <Card title="Front Face" icon="id-card">
+        **Required for all document types.** Must show the photo, full name, document number, and expiry date clearly and without obstruction.
+      </Card>
+      <Card title="Back Face" icon="rotate">
+        **Optional for passports; recommended for National IDs and Driver's Licenses.** Captures the machine-readable zone (MRZ) or barcode on reverse-side documents.
+      </Card>
+      <Card title="Selfie" icon="camera">
+        **Optional — enables biometric check.** A live or uploaded portrait photo used to compute a facial similarity score against the document photograph.
+      </Card>
+    </CardGroup>
+
+    Position the document on a flat, matte surface under even lighting before capturing. Avoid placing it on screens or reflective backgrounds.
+  </Step>
+
+  <Step title="Review Quality Analysis">
+    After upload, the **Capture Quality Intelligence Engine** analyses each image automatically before you can proceed to submission. Review the three quality signals reported on screen:
+
+    | Signal | What It Measures | Fail Condition |
+    |---|---|---|
+    | **Sharpness Score** | Overall image clarity and focus | Score below acceptable threshold |
+    | **Shadow Detection** | Uneven lighting that may obscure holograms or text | Severe shadow coverage detected |
+    | **Screen Recapture Detection** | Whether the image is a photograph of a digital screen rather than a physical document | Screen display pattern detected |
+
+    <Warning>
+      If screen recapture or severe blur is detected, the **Submit** button is disabled and you will not be able to proceed. You must re-capture the physical document directly — photographing a screen showing someone else's document image is blocked at the platform level and constitutes a compliance violation. Re-take the scan under proper conditions and re-upload before continuing.
+    </Warning>
+
+    When all three signals pass, a green **Quality Approved** banner appears and the **Submit for Verification** button becomes active.
+  </Step>
+
+  <Step title="Submit for OCR Verification">
+    Click **Submit for Verification** to hand off the record to Quick KYC's on-premises verification engine. The system will extract all PII fields from the document, cross-reference them against your initial client-detail inputs, evaluate forensic risk signals, and assign an initial status — all without any data leaving your infrastructure.
+
+    The record is immediately written to the **Ingestion Queue** in the compliance dashboard with a status of **`PENDING`**. Processing takes place entirely on your local nodes — no data leaves your infrastructure.
+  </Step>
+
+</Steps>
+
+<Note>
+  After submission, Quick KYC processes the document asynchronously in the background. You do not need to keep the onboarding wizard open. The record will appear in the **Ingestion Queue** on the compliance dashboard, and its status will transition automatically from `PENDING` to either `UNDER_REVIEW` (if risk signals require human inspection) or `APPROVED` (if all checks pass within configured thresholds). You will see the updated status the next time you load or refresh the dashboard queue.
+</Note>

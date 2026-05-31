@@ -1,0 +1,123 @@
+---
+title: "PATCH /api/verifications/:id/status — Update Status"
+sidebarTitle: "Update Status"
+description: "PATCH /api/verifications/:id/status — manually override a verification's compliance status to APPROVED or REJECTED with audit notes."
+---
+
+After the engine completes its automated analysis, a compliance officer may need to override the result — either clearing a document that was flagged in error, or rejecting one that slipped through with a low risk score. This endpoint performs that manual override and permanently records the decision, the actor, and any supporting notes in the audit history. It is the primary action surface for the Quick KYC compliance portal's review workflow.
+
+## Endpoint
+
+```
+PATCH /api/verifications/:id/status
+```
+
+## Path Parameter
+
+<ParamField path="id" type="string" required>
+  The `KYC-xxxxxxxx` record ID of the verification you want to update.
+</ParamField>
+
+## Request Body
+
+<ParamField body="status" type="string" required>
+  The new compliance status. Must be one of `"APPROVED"` or `"REJECTED"`. Transitions to `PENDING` or `UNDER_REVIEW` via this endpoint are not permitted.
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Free-text compliance justification for the override. Recommended for audit trail quality — describe what the officer observed during manual inspection.
+</ParamField>
+
+<ParamField body="fraudType" type="string">
+  A fraud classification label, required when `status` is `"REJECTED"`. Common values include `"Photo Swap"`, `"Expired Document"`, `"Recapture Spoof"`, and `"Tampered Fields"`. This field is used for reporting and continuous-improvement analytics.
+</ParamField>
+
+<ParamField body="missedSignals" type="array">
+  An optional list of forensic indicators that the automated engine failed to detect. Providing these signals feeds the continuous improvement pipeline and helps re-tune detection thresholds over time.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash curl (Approve)
+curl -X PATCH http://your-server:8080/api/verifications/KYC-a9fd8241/status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "APPROVED",
+    "notes": "Manual inspection confirmed physical document features.",
+    "fraudType": "",
+    "missedSignals": []
+  }'
+```
+
+```bash curl (Reject)
+curl -X PATCH http://your-server:8080/api/verifications/KYC-a9fd8241/status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "REJECTED",
+    "notes": "Portrait region appears digitally substituted. Micro-print inconsistencies observed.",
+    "fraudType": "Photo Swap",
+    "missedSignals": ["r_portrait_mismatch", "r_microprint_failure"]
+  }'
+```
+
+```json Body
+{
+  "status": "APPROVED",
+  "notes": "Manual inspection confirmed physical document features.",
+  "fraudType": "",
+  "missedSignals": []
+}
+```
+</CodeGroup>
+
+## Response — 200 OK
+
+<ResponseField name="id" type="string">
+  The record ID of the updated verification.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  The new compliance status, reflecting your override: `"APPROVED"` or `"REJECTED"`.
+</ResponseField>
+
+<ResponseField name="notes" type="string">
+  The compliance notes you submitted, echoed back for confirmation.
+</ResponseField>
+
+<ResponseField name="history" type="array">
+  An ordered log of all status transitions for this record. Each entry captures when the change happened, who made it, and what the action was.
+
+  <Expandable title="history item fields">
+    <ResponseField name="timestamp" type="string">
+      ISO 8601 timestamp of the transition event.
+    </ResponseField>
+    <ResponseField name="actor" type="string">
+      Name or identifier of the compliance officer who performed the action.
+    </ResponseField>
+    <ResponseField name="action" type="string">
+      Human-readable description of the transition (e.g., `"Status Updated to APPROVED"`).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "id": "KYC-a9fd8241",
+  "status": "APPROVED",
+  "notes": "Manual inspection confirmed physical document features.",
+  "history": [
+    {
+      "timestamp": "2026-05-31T16:55:00Z",
+      "actor": "John Doe",
+      "action": "Status Updated to APPROVED"
+    }
+  ]
+}
+```
+
+<Note>
+  Every status override is permanently appended to the `history` array and mirrored in the system-wide audit log at `GET /api/audit-logs`. These entries cannot be deleted or modified — they form the immutable compliance record for each verification.
+</Note>

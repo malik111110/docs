@@ -1,0 +1,105 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Quick KYC",
+  "theme": "luma",
+  "logo": {
+    "light": "https://media.brand.dev/5ffd6ce4-2434-4b4b-920a-f8cacac8b48b.svg",
+    "dark": "https://media.brand.dev/5ffd6ce4-2434-4b4b-920a-f8cacac8b48b.svg"
+  },
+  "favicon": "https://media.brand.dev/2b01fe20-c04b-4a1d-a2f9-1d2789c50a7a.jpg",
+  "colors": {
+    "primary": "#848c8e",
+    "light": "#11161e",
+    "dark": "#cfd0d2"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/how-it-works",
+              "concepts/verification-lifecycle",
+              "concepts/risk-scoring"
+            ]
+          },
+          {
+            "group": "User Guide",
+            "pages": [
+              "guides/onboarding",
+              "guides/dashboard",
+              "guides/manual-audit"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/setup",
+              "configuration/webhooks"
+            ]
+          },
+          {
+            "group": "Troubleshooting",
+            "pages": [
+              "troubleshooting/common-issues",
+              "troubleshooting/faq"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication"
+            ]
+          },
+          {
+            "group": "Verifications",
+            "pages": [
+              "api/verifications/submit",
+              "api/verifications/list",
+              "api/verifications/get",
+              "api/verifications/update-status",
+              "api/verifications/explain",
+              "api/verifications/check-quality"
+            ]
+          },
+          {
+            "group": "Audit & Monitoring",
+            "pages": [
+              "api/audit-logs",
+              "api/ocr-node-stats"
+            ]
+          },
+          {
+            "group": "Python SDK",
+            "pages": [
+              "sdk/python/overview",
+              "sdk/python/usage",
+              "sdk/python/error-handling"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/malik111110/Quick-KYC-DOCS"
+    }
+  }
+}

@@ -1,0 +1,76 @@
+---
+title: "GET /api/stats/ocr-node — Processing Metrics"
+sidebarTitle: "OCR Node Stats"
+description: "GET /api/stats/ocr-node — fetch real-time health and throughput metrics for the Quick KYC OCR processing node, including queue depth and success rate."
+---
+
+The OCR node stats endpoint exposes a real-time snapshot of the processing worker that handles all document extraction and analysis jobs on your Quick KYC server. Polling this endpoint lets you verify the pipeline is healthy before committing a large batch of submissions, and makes it straightforward to wire Quick KYC into your existing monitoring dashboards or alerting systems.
+
+## Endpoint
+
+```
+GET /api/stats/ocr-node
+```
+
+This endpoint accepts no query parameters and always returns the current live state of the OCR node.
+
+## Request Example
+
+```bash
+curl -X GET http://your-server:8080/api/stats/ocr-node \
+  -H "Content-Type: application/json"
+```
+
+## Response — 200 OK
+
+The response is a single JSON object containing health and throughput metrics for the running OCR node. All fields are described below.
+
+<ResponseField name="uptime" type="string" required>
+  Human-readable duration indicating how long the OCR node has been continuously running since its last restart (e.g., `"23d 4h 12m"`).
+</ResponseField>
+
+<ResponseField name="successRate" type="float" required>
+  Percentage of verification jobs that completed successfully since the node started (e.g., `99.8`).
+</ResponseField>
+
+<ResponseField name="avgLatency" type="string" required>
+  Rolling average time to process a single verification record end-to-end (e.g., `"820ms"`).
+</ResponseField>
+
+<ResponseField name="queueDepth" type="integer" required>
+  Number of verification records currently waiting in the processing queue. A value of `0` means the node is idle and ready to accept new work immediately.
+</ResponseField>
+
+<ResponseField name="cpuUsage" type="float" required>
+  Current CPU utilization as a percentage of total available CPU capacity (e.g., `12.5`).
+</ResponseField>
+
+<ResponseField name="gpuUsage" type="float" required>
+  Current GPU utilization as a percentage of total available GPU capacity (e.g., `45.2`). Returns `0` when the node is running in CPU-only mode.
+</ResponseField>
+
+<ResponseField name="memoryUsage" type="float" required>
+  Current memory utilization as a percentage of total available system memory (e.g., `32.8`).
+</ResponseField>
+
+### Example Response Body
+
+```json
+{
+  "uptime": "23d 4h 12m",
+  "successRate": 99.8,
+  "avgLatency": "820ms",
+  "queueDepth": 0,
+  "cpuUsage": 12.5,
+  "gpuUsage": 45.2,
+  "memoryUsage": 32.8
+}
+```
+
+<Tip>
+  Check `queueDepth` before submitting a large batch. If the value is growing between consecutive polls, the node is under pressure — throttle your submission rate to avoid compounding delays.
+</Tip>
+
+<Note>
+  `gpuUsage` will always be `0` if the OCR node is running in CPU-only mode. This is expected behaviour and does not indicate a problem with the node.
+</Note>

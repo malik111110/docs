@@ -1,0 +1,129 @@
+---
+title: "Quick KYC FAQ: Document Verification and Compliance Guide"
+sidebarTitle: "FAQ"
+description: "Answers to the most common questions about Quick KYC document verification, data privacy, supported formats, and compliance workflows."
+---
+
+The questions below cover the topics that operators, developers, and compliance officers ask most often when deploying and using Quick KYC. Whether you are evaluating the platform for the first time or troubleshooting a specific workflow, you will find direct, practical answers here — with references to the relevant API endpoints and system behaviors where applicable.
+
+<AccordionGroup>
+
+  <Accordion title="Does Quick KYC send document data to any external service?">
+    No. Quick KYC is a fully on-premises platform — all processing happens exclusively on your own infrastructure. OCR text extraction, fraud detection, and embedding generation all run on your local server. No personally identifiable information (PII), document images, or derived data is transmitted to any external service or third-party cloud provider at any point during processing.
+
+    <Note>
+      This architecture is intentional. Quick KYC is designed for organizations where data sovereignty and client privacy are non-negotiable compliance requirements.
+    </Note>
+  </Accordion>
+
+  <Accordion title="What document types are supported?">
+    Quick KYC supports the following government-issued identity documents:
+
+    - **Passports**
+    - **National ID cards**
+    - **Driver's licenses**
+
+    Documents that include a **Machine Readable Zone (MRZ)** — such as passports and many national IDs — receive an additional MRZ-specific OCR pass during processing. This dedicated pass improves field extraction accuracy for structured MRZ data compared to standard free-text OCR alone.
+  </Accordion>
+
+  <Accordion title="What image formats are accepted?">
+    Quick KYC accepts **base64-encoded JPEG images** only. Before submitting a document to `POST /api/verifications` or `POST /api/verifications/check-quality`, you must:
+
+    1. Convert the image to JPEG format if it is currently in another format (e.g., PNG, HEIC, or WebP).
+    2. Base64-encode the resulting JPEG bytes.
+    3. Pass the encoded string as the value of the `documentFront`, `documentBack`, or `selfie` fields in your JSON request body.
+
+    <Warning>
+      Submitting images in non-JPEG formats or forgetting to base64-encode them will result in an HTTP 400 Bad Request error.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="How long does verification take?">
+    Verification processing is **asynchronous**. When you submit a document via `POST /api/verifications`, the record is immediately created with a `PENDING` status and enqueued for background processing. On standard server hardware, end-to-end processing typically completes in **under 2 seconds**.
+
+    You have two options for receiving the result:
+
+    - **Polling:** Call `GET /api/verifications/:id` periodically until the status transitions out of `PENDING`.
+    - **Webhook:** Include a `webhookUrl` in your submission request. Quick KYC will POST the completed result to that URL when processing finishes.
+
+    <Tip>
+      For production integrations, webhooks are preferred over polling. They reduce unnecessary API calls and give you near-instant notification when a verification completes.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="Can I submit a selfie for biometric verification?">
+    Yes. To enable biometric comparison, include a base64-encoded JPEG selfie in the `selfie` field of your `POST /api/verifications` request body:
+
+    ```json
+    {
+      "documentFront": "<base64_jpeg>",
+      "selfie": "<base64_jpeg>"
+    }
+    ```
+
+    When a selfie is provided, the audit portal displays an **ORB-based facial similarity score** alongside the document scan. Compliance officers can review this score during manual inspection to verify that the person presenting the document matches the photo printed on it.
+  </Accordion>
+
+  <Accordion title="What does UNDER_REVIEW status mean?">
+    A verification record moves to `UNDER_REVIEW` when OCR processing completes successfully but the system detects one or more risk signals that require human judgment. Common triggers include:
+
+    - An **expired document** (the `expiryDate` field has passed)
+    - An **ELA (Error Level Analysis) anomaly** suggesting potential digital manipulation
+    - Suspicious quality indicators such as patch inconsistency or character alignment deviations
+
+    Records in `UNDER_REVIEW` are held in the compliance queue. A **compliance officer must manually review** the audit portal and either approve or reject the record before it reaches a terminal status.
+
+    <Note>
+      `UNDER_REVIEW` does not mean the document is fraudulent — it means the automated system flagged signals that require a human decision. Many records reviewed by compliance officers are ultimately approved.
+    </Note>
+  </Accordion>
+
+  <Accordion title="Can a compliance officer override an automatically approved record?">
+    Yes. You can update the status of **any** verification record — regardless of its current status — by calling:
+
+    ```
+    PATCH /api/verifications/:id/status
+    ```
+
+    Set the `status` field to either `APPROVED` or `REJECTED`, and include decision notes in the `notes` field. If rejecting, you can also specify a `fraudType` (e.g., `"Recapture Spoof"`) and list any `missedSignals` the automated engine failed to flag.
+
+    Every status change made via this endpoint is **permanently logged** in the verification's audit history, including the actor's name, the timestamp, and the action taken.
+  </Accordion>
+
+  <Accordion title="Is there a record of who approved or rejected a verification?">
+    Yes. Quick KYC maintains a complete, immutable audit history for every verification record. Each entry in the history records:
+
+    - The **actor's name** (the compliance officer or system that made the change)
+    - The **timestamp** of the action (ISO 8601 format)
+    - The **action** performed (e.g., `"Status Updated to APPROVED"`)
+
+    You can view the full history for any record by calling `GET /api/verifications/:id`. The `history` array in the response contains every status transition the record has passed through since submission. System-wide compliance logs are also available via `GET /api/audit-logs`.
+  </Accordion>
+
+  <Accordion title="What is the difference between riskScore and trustIndex.overallScore?">
+    These two scores measure different aspects of a verification and are intentionally distinct:
+
+    | Field | Range | Direction | What it measures |
+    |---|---|---|---|
+    | `riskScore` | 0 – 100 | Higher = riskier | Composite fraud probability across all forensic signals |
+    | `trustIndex.overallScore` | 0 – 100 | Higher = better | Document image quality and authenticity composite |
+
+    - **`riskScore`** aggregates signals such as expiration status, ELA anomalies, patch inconsistencies, and biometric mismatch into a single fraud-likelihood score. A high `riskScore` increases the likelihood of an `UNDER_REVIEW` or `REJECTED` outcome.
+    - **`trustIndex.overallScore`** reflects how well the captured image supports accurate analysis — factoring in sharpness, shadow coverage, and screen-recapture likelihood. A low `trustIndex.overallScore` does not necessarily indicate fraud, but it does mean the image quality may have limited the system's ability to make a confident determination.
+  </Accordion>
+
+  <Accordion title="Can I run Quick KYC without GPU hardware?">
+    Yes. Quick KYC is capable of running on **CPU-only hardware**. All OCR, fraud detection, and embedding generation pipelines can execute without a GPU present.
+
+    However, you should be aware of the trade-offs:
+
+    - **Processing latency will be higher** on CPU-only nodes compared to GPU-accelerated hardware.
+    - For **low-to-moderate verification volumes**, CPU-only deployment is generally acceptable.
+    - For **high-volume production deployments**, GPU hardware is strongly recommended to maintain throughput and keep end-to-end latency under 2 seconds.
+
+    <Tip>
+      You can monitor real-time CPU and GPU utilization on your node via `GET /api/stats/ocr-node`. Use the `cpuUsage`, `gpuUsage`, and `avgLatency` fields to determine whether your current hardware is keeping up with demand.
+    </Tip>
+  </Accordion>
+
+</AccordionGroup>

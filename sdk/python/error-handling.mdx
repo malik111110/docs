@@ -1,0 +1,68 @@
+---
+title: "Quick KYC Python SDK Error Handling and Exceptions"
+sidebarTitle: "Error Handling"
+description: "Handle Quick KYC Python SDK exceptions: ValidationError for bad requests, NotFoundError for missing records, and ServerError for processing failures."
+---
+
+Every error raised by the Quick KYC Python SDK descends from a single base class — `QuickKYCError` — so you can choose how broadly or narrowly to catch failures depending on your application's needs. The hierarchy maps directly to HTTP status codes, making it easy to understand exactly what went wrong and decide how to respond.
+
+## Exception Hierarchy
+
+```
+QuickKYCError (base)
+├── ValidationError  — HTTP 400 Bad Request
+├── NotFoundError    — HTTP 404 Not Found
+└── ServerError      — HTTP 500+ Internal Server Error
+```
+
+## Exception Attributes
+
+Every exception in the hierarchy exposes the same three attributes:
+
+| Attribute        | Type  | Description                                              |
+|------------------|-------|----------------------------------------------------------|
+| `.message`       | `str` | Human-readable explanation returned by the server        |
+| `.status_code`   | `int` | The HTTP status code associated with the error           |
+| `.response_body` | `str` | Raw text of the full error response body from the server |
+
+## Handling Exceptions
+
+The example below shows a comprehensive `try/except` block that handles each exception type individually before falling back to the base class:
+
+```python
+from quick_kyc import QuickKYCClient, ValidationError, NotFoundError, ServerError, QuickKYCError
+
+client = QuickKYCClient()
+
+try:
+    record = client.create_verification(document_front=b64_image)
+except ValidationError as e:
+    # Bad request — check your input data
+    print(f"Validation error ({e.status_code}): {e.message}")
+except NotFoundError as e:
+    # Record not found
+    print(f"Not found ({e.status_code}): {e.message}")
+except ServerError as e:
+    # Server-side failure — retry after a delay
+    print(f"Server error ({e.status_code}): {e.message}")
+    print(f"Raw response: {e.response_body}")
+except QuickKYCError as e:
+    # Catch-all for any other SDK error
+    print(f"Unexpected error: {e.message}")
+```
+
+## Error Reference Table
+
+| Exception         | HTTP Status | When It Occurs                              | Recommended Action                       |
+|-------------------|-------------|---------------------------------------------|------------------------------------------|
+| `ValidationError` | 400         | Missing or invalid fields, malformed base64 | Inspect your input data and correct it   |
+| `NotFoundError`   | 404         | The verification ID does not exist          | Confirm the ID was stored correctly      |
+| `ServerError`     | 500+        | Server-side processing failure              | Retry with exponential backoff           |
+
+<Warning>
+  Always catch `QuickKYCError` as a minimum fallback in production code. Leaving SDK errors unhandled can cause your application to crash on unexpected server responses or network-level issues.
+</Warning>
+
+<Tip>
+  When you catch a `ServerError`, log `e.response_body` alongside your usual error context. The raw response body often contains internal diagnostic details that make it much faster to identify the root cause when working with the Quick KYC support team.
+</Tip>

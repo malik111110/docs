@@ -1,0 +1,121 @@
+---
+title: "Understanding Risk Scores and Fraud Signals"
+sidebarTitle: "Risk Scoring"
+description: "Quick KYC generates a risk score and forensic signals for every verification. Learn how scores are calculated and what each signal means."
+---
+
+Every verification processed by Quick KYC produces two complementary outputs: a numeric **risk score** and an array of **risk signals**. Together they give compliance officers and integrating systems a precise, auditable picture of document integrity — without requiring manual inspection of raw image data for the majority of cases.
+
+## The Risk Score
+
+The risk score is a single integer between **0 and 100**. A higher score means a greater probability of fraud or document tampering. It is stored on the verification record as `trustIndex.overallScore` and is displayed as a colour-coded progress bar in the Admin Dashboard.
+
+### Colour Thresholds
+
+| Score Range | Risk Level | Dashboard Colour |
+|---|---|---|
+| 0 – 19 | Low | 🟢 Green |
+| 20 – 60 | Medium | 🟡 Yellow |
+| 61 – 100 | High | 🔴 Red |
+
+<Note>
+  A low score does not guarantee a document is authentic — it means the automated pipeline found no signals above the detection threshold. Always apply human judgment for high-value decisions, especially when a document is close to the 20 or 60 boundary.
+</Note>
+
+## The `trustIndex` Object
+
+The `overallScore` is a weighted composite derived from several sub-scores computed independently across quality and forensic dimensions. You receive the full `trustIndex` object on every verification response and webhook payload:
+
+```json
+{
+  "overallScore": 58,
+  "sharpnessScore": 43.2,
+  "isBlurred": true,
+  "hasShadows": false,
+  "isScreenRecaptureLikely": false
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `overallScore` | `integer` (0–100) | Weighted composite risk score across all dimensions |
+| `sharpnessScore` | `float` | Image sharpness score; values below **80** indicate blur |
+| `isBlurred` | `boolean` | `true` when `sharpnessScore` is below the blur threshold |
+| `hasShadows` | `boolean` | `true` when uneven lighting is detected across the document surface |
+| `isScreenRecaptureLikely` | `boolean` | `true` when repeating digital patterns or fringe artefacts consistent with screen recapture are present |
+
+<Note>
+  `sharpnessScore` and `isBlurred` refer to image quality, not document authenticity. A blurred scan of a genuine document will still raise the overall risk score because OCR confidence is lower, even if no forensic tampering is detected.
+</Note>
+
+## The `riskSignals` Array
+
+While the `trustIndex` gives you aggregate scores, the `riskSignals` array tells you *why* — each entry is a specific finding produced by one of the forensic analysis modules. Signals are additive: a record can carry zero or many.
+
+```json
+[
+  {
+    "id": "ela_anomaly",
+    "type": "danger",
+    "message": "Significant ELA variance detected in document body — possible digital edit."
+  },
+  {
+    "id": "shadow_interference",
+    "type": "warning",
+    "message": "Uneven lighting detected. OCR confidence may be reduced."
+  }
+]
+```
+
+### Signal Severity Types
+
+| `type` | Meaning | Recommended Action |
+|---|---|---|
+| `danger` | Strong indicator of fraud or tampering | Escalate for manual review; consider rejection |
+| `warning` | Potential issue that may have an innocent explanation | Review in context of other signals and field confidence scores |
+| `info` | Informational finding; does not affect the risk score | Useful for audit trail completeness |
+
+### Common Signal Reference
+
+| Signal `id` | Severity | What It Means |
+|---|---|---|
+| `expired_document` | `danger` | The expiry date extracted by OCR is in the past |
+| `ela_anomaly` | `danger` | Error Level Analysis detected re-compression variance consistent with digital editing or copy-paste manipulation |
+| `geometry_anomaly` | `danger` | Character baseline alignment is inconsistent, indicating text may have been overlaid on the original document |
+| `photo_swap_detected` | `danger` | Red-hue artifacts or solid-colour patches were found around the portrait region, a signature of photo-swap tampering |
+| `mrz_checksum_failure` | `danger` | One or more MRZ field checksums (per ICAO 9303) do not validate, indicating data has been altered |
+| `shadow_interference` | `warning` | Uneven lighting across the document surface may have reduced OCR accuracy for affected fields |
+| `low_sharpness` | `warning` | Image sharpness is below threshold; extracted field confidence scores may be unreliable |
+| `screen_recapture_likely` | `warning` | Digital pattern analysis suggests the scan is a photograph of a screen rather than a physical document |
+
+<Note>
+  Multiple `danger` signals on the same record are treated independently — each reflects a separate forensic finding from a different analysis module. The presence of two or more `danger` signals on a single document is a strong indicator that the record warrants rejection.
+</Note>
+
+## AI-Generated Explanation
+
+For any completed verification, you can request a plain-language summary of the risk findings using the explain endpoint:
+
+```http
+GET /api/verifications/:id/explain
+```
+
+The response contains a human-readable narrative that describes the overall risk level, the most significant signals, and suggested next steps for the reviewing officer. This is particularly useful for generating automated compliance notifications or embedding risk summaries in your own case-management tools.
+
+```json
+{
+  "explanation": "This document carries a high risk score of 82. Two danger-level signals were raised: an ELA anomaly consistent with digital editing was detected in the lower-right quadrant, and MRZ checksum validation failed for the document number field. The document is recommended for rejection pending further manual investigation."
+}
+```
+
+<Note>
+  The explanation is generated from the structured signal data — it does not use an external language model and does not transmit any document content outside your infrastructure.
+</Note>
+
+## Interpreting Scores in Practice
+
+When you review a verification record, combine the `overallScore`, the `trustIndex` sub-scores, and the `riskSignals` together rather than relying on any single value in isolation.
+
+- A **high `overallScore`** with **no `danger` signals** often means the document quality was poor (blur, shadows) rather than fraudulent. Check `sharpnessScore` and `hasShadows` first.
+- A **low `overallScore`** with **one `danger` signal** (e.g., `expired_document`) means the document is clean but should still be rejected for compliance reasons.
+- A **medium score** with **multiple `warning` signals** warrants closer attention — individually each warning may be explainable, but their combination increases the likelihood of tampering.

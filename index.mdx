@@ -1,0 +1,58 @@
+---
+title: "Quick KYC Documentation"
+sidebarTitle: "Home"
+description: "Quick KYC is an on-premises identity verification platform. Automate document OCR, fraud detection, and compliance workflows — all without sending data to the cloud."
+---
+
+Quick KYC helps compliance teams and developers verify government-issued IDs, passports, and driver's licenses with zero external data exposure. All processing runs on your own infrastructure — your documents never leave your network.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Submit your first verification and see results in minutes
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the full REST API for verifications, audits, and monitoring
+  </Card>
+  <Card title="User Guide" icon="user-shield" href="/guides/onboarding">
+    Step-by-step guides for compliance officers and operators
+  </Card>
+  <Card title="Python SDK" icon="python" href="/sdk/python/overview">
+    Integrate Quick KYC into your Python applications
+  </Card>
+</CardGroup>
+
+## How It Works
+
+Quick KYC processes document submissions through a secure, fully local pipeline — from image quality checks to OCR extraction to risk evaluation — and surfaces results in a compliance dashboard or via webhook.
+
+<Steps>
+  <Step title="Upload a document">
+    Submit a document scan (front, back, and optional selfie) via the dashboard or API. Quick KYC checks image quality before processing begins.
+  </Step>
+  <Step title="Automated OCR & fraud analysis">
+    The system runs multi-pass OCR to extract fields with confidence scores, and performs forensic checks for tampering, expiration, and recapture spoofing.
+  </Step>
+  <Step title="Review in the dashboard">
+    Compliance officers see a risk score, extracted data, and any flagged signals. They can approve, reject, or request a manual audit directly from the UI.
+  </Step>
+  <Step title="Receive results via webhook">
+    Optionally supply a webhook URL at submission time to receive the full verification result as soon as processing completes.
+  </Step>
+</Steps>
+
+## Explore by Role
+
+<CardGroup cols={2}>
+  <Card title="I'm a compliance officer" icon="clipboard-check" href="/guides/dashboard">
+    Learn how to review the verification queue, interpret risk scores, and override statuses
+  </Card>
+  <Card title="I'm a developer" icon="terminal" href="/api/overview">
+    Integrate verification submissions and receive results programmatically via REST or Python SDK
+  </Card>
+  <Card title="Core Concepts" icon="lightbulb" href="/concepts/how-it-works">
+    Understand the verification lifecycle, risk scoring, and fraud detection signals
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/troubleshooting/common-issues">
+    Find answers to common questions and resolve integration issues
+  </Card>
+</CardGroup>

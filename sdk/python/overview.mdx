@@ -1,0 +1,71 @@
+---
+title: "Quick KYC Python SDK — Installation and Client Setup"
+sidebarTitle: "Overview"
+description: "The Quick KYC Python SDK wraps the REST API with typed methods, automatic error handling, and Python-native responses — ideal for backend integrations."
+---
+
+The Quick KYC Python SDK (`quick_kyc`) is a typed Python client that wraps every endpoint of the Quick KYC REST API into clean, callable methods. It handles HTTP connection management, enforces configurable timeouts, and deserializes all server responses into Python dictionaries — so you spend time building your integration, not parsing raw HTTP responses.
+
+## Installation
+
+Install the SDK from PyPI using `pip`:
+
+```bash
+pip install quick-kyc
+```
+
+## Initializing the Client
+
+Import `QuickKYCClient` and point it at your on-premises Quick KYC server:
+
+```python
+from quick_kyc import QuickKYCClient
+
+client = QuickKYCClient(base_url="http://your-server:8080", timeout=12.0)
+```
+
+Both constructor parameters are optional:
+
+| Parameter  | Type    | Default                   | Description                                      |
+|------------|---------|---------------------------|--------------------------------------------------|
+| `base_url` | `str`   | `"http://localhost:8080"` | Full base URL of your Quick KYC server instance  |
+| `timeout`  | `float` | `12.0`                    | Maximum seconds to wait for a server response    |
+
+## Available Methods
+
+The client exposes one method per API operation. All methods return Python `dict` objects that mirror the corresponding REST API response schemas.
+
+<CardGroup cols={2}>
+  <Card title="check_quality(image)" icon="magnifying-glass">
+    Synchronously checks the quality of a base64-encoded document image before you commit it to the full verification pipeline. Returns blur, shadow, and screen-recapture signals.
+  </Card>
+  <Card title="create_verification(...)" icon="circle-plus">
+    Submits a new verification record. Accepts `document_front`, optional `document_back`, optional `selfie`, and an optional `webhook_url` for async callbacks.
+  </Card>
+  <Card title="get_verifications()" icon="list">
+    Returns a list of all verification records currently stored in the database, with summary fields for each record.
+  </Card>
+  <Card title="get_verification(verification_id)" icon="file-magnifying-glass">
+    Fetches the full detail record for a single verification, including extracted field data, forensic risk signals, and trust scores.
+  </Card>
+  <Card title="update_verification_status(...)" icon="pen-to-square">
+    Performs a manual compliance override on a verification record. Accepts `verification_id`, `status` (`APPROVED` or `REJECTED`), `notes`, and optional `fraud_type` and `missed_signals`.
+  </Card>
+</CardGroup>
+
+## Exception Hierarchy
+
+All SDK errors descend from a single base class, making it easy to catch errors at any level of specificity:
+
+```
+QuickKYCError (base)
+├── ValidationError  — HTTP 400 Bad Request
+├── NotFoundError    — HTTP 404 Not Found
+└── ServerError      — HTTP 500+ Internal Server Error
+```
+
+See the [Error Handling](/sdk/python/error-handling) page for a full reference and catch-all examples.
+
+<Note>
+  All SDK methods return plain Python `dict` objects whose keys and value types match the corresponding REST API response schemas documented in the [API Reference](/api) section.
+</Note>

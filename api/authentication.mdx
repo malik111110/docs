@@ -1,0 +1,86 @@
+---
+title: "Quick KYC API: Network Security and Access Patterns"
+sidebarTitle: "Authentication"
+description: "Quick KYC runs on your own network. Secure API access using firewalls, VPNs, or a reverse proxy — no API keys are required by default."
+---
+
+Quick KYC is an on-premises platform — every component runs inside your own infrastructure. Because the system never leaves your network perimeter by design, the API does not issue or validate API keys or bearer tokens out of the box. Instead, access control is delegated entirely to the network and infrastructure layer, where your operations team already manages trust boundaries.
+
+## How Access Control Works
+
+There is no `Authorization` header required on any request. When a client can reach port `8080` on the Quick KYC host, it can call any endpoint. Your responsibility is to ensure that only trusted clients can reach that port.
+
+<Warning>
+  Do not expose port `8080` directly to the public internet. Quick KYC has no built-in rate limiting, brute-force protection, or credential validation. If external access is required, place the service behind a reverse proxy that enforces authentication and TLS termination.
+</Warning>
+
+## Recommended Access Patterns
+
+<Tabs>
+  <Tab title="Development">
+    During development, run Quick KYC on your local machine or a shared LAN host and access it directly. No additional configuration is needed.
+
+    ```bash
+    # Reach Quick KYC from the same machine
+    curl http://localhost:8080/api/stats/ocr-node
+
+    # Reach Quick KYC from another machine on the same LAN
+    curl http://192.168.1.50:8080/api/stats/ocr-node
+    ```
+  </Tab>
+  <Tab title="Production (Internal)">
+    For production deployments with internal-only access, restrict port `8080` to your trusted internal subnet using firewall rules. On Linux with `ufw`:
+
+    ```bash
+    # Allow access only from the 10.0.0.0/8 internal range
+    ufw allow from 10.0.0.0/8 to any port 8080
+    ufw deny 8080
+    ```
+
+    Alternatively, ask your administrator to bind Quick KYC to a specific internal network interface so it never listens on a public-facing NIC.
+  </Tab>
+  <Tab title="Production (External Access)">
+    If operators need to access Quick KYC from outside your network, place it behind a reverse proxy such as **nginx** or **Caddy** that handles TLS and authentication before forwarding requests.
+
+    **nginx example with HTTP Basic Auth:**
+    ```nginx
+    server {
+        listen 443 ssl;
+        server_name kyc.internal.example.com;
+
+        ssl_certificate     /etc/ssl/certs/kyc.crt;
+        ssl_certificate_key /etc/ssl/private/kyc.key;
+
+        location /api/ {
+            auth_basic           "Quick KYC";
+            auth_basic_user_file /etc/nginx/.htpasswd;
+            proxy_pass           http://127.0.0.1:8080;
+        }
+    }
+    ```
+
+    Use a VPN as an alternative — require operators to be connected before they can reach the Quick KYC host at all.
+  </Tab>
+</Tabs>
+
+## Making a Request
+
+Because no authentication header is required, any valid HTTP client can call the API. The examples below use `curl`.
+
+```bash
+# List all verification records
+curl http://your-server:8080/api/verifications
+
+# Submit a new verification
+curl -X POST http://your-server:8080/api/verifications \
+  -H "Content-Type: application/json" \
+  -d '{"documentFront": "base64_jpeg_string..."}'
+```
+
+<Tip>
+  Use `GET /api/stats/ocr-node` as a lightweight connectivity check. If it returns `200 OK` with an uptime value, your client can reach the API and the processing node is healthy.
+
+  ```bash
+  curl http://your-server:8080/api/stats/ocr-node
+  ```
+</Tip>
