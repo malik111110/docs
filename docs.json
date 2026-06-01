@@ -53,6 +53,14 @@
               "troubleshooting/common-issues",
               "troubleshooting/faq"
             ]
+          },
+          {
+            "group": "Architecture",
+            "icon": "sitemap",
+            "pages": [
+              "architecture/system-overview.mdx",
+              "architecture/ocr-benchmark.mdx"
+            ]
           }
         ]
       },
@@ -90,6 +98,34 @@
               "sdk/python/overview",
               "sdk/python/usage",
               "sdk/python/error-handling"
+            ]
+          },
+          {
+            "group": "Go SDK",
+            "icon": "golang",
+            "pages": [
+              "sdk/go/overview",
+              "sdk/go/usage",
+              "sdk/go/error-handling"
+            ]
+          },
+          {
+            "group": "Node.js SDK",
+            "icon": "node-js",
+            "pages": [
+              "sdk/node/overview",
+              "sdk/node/usage",
+              "sdk/node/error-handling"
+            ]
+          },
+          {
+            "group": "Java SDK",
+            "icon": "java",
+            "pages": [
+              "sdk/java/overview",
+              "sdk/java/usage",
+              "sdk/java/error-handling",
+              "sdk/java/integration"
             ]
           }
         ]
